@@ -61,12 +61,14 @@ async function tick() {
         // attach and a keyboard. Read once, here — the pane is a tmux call and
         // this loop runs every 2.5 seconds for every session.
         const choices = readChoices(tmux.captureRaw(session.tmux))
+        const asking = session.asking || Boolean(choices?.options?.length)
         await notify({
           title: `${session.name} is waiting`,
           body: choices?.question || `${project.name} — Claude finished and needs you.`,
           tmux: session.tmux,
           project: project.path,
           actions: choiceActions(choices),
+          finished: !asking,
         }).catch(() => {})
       }
     }

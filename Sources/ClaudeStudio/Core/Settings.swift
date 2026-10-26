@@ -18,6 +18,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("sound.onRunFinish")   var soundOnRunFinish = true
     /// Show a notification banner.
     @AppStorage("notify.enabled")      var notifyEnabled = true
+    @AppStorage("notify.finishedTurns") var notifyFinishedTurns = false
     /// Show the number of waiting sessions on the Dock icon.
     @AppStorage("notify.badge")        var badgeEnabled = true
     /// Terminal font size.

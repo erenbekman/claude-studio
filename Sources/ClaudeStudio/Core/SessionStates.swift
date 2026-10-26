@@ -300,7 +300,8 @@ final class SessionStates: ObservableObject {
         // exactly how the quickest answers announced nothing at all.
         if seeded {
             for row in rows where row.attention.needsAttention
-            && !(attention[row.key]?.needsAttention ?? false) {
+            && !(attention[row.key]?.needsAttention ?? false)
+            && (row.attention.isQuestion || AppSettings.shared.notifyFinishedTurns) {
                 AppSettings.shared.announceWaiting(
                     session: row.name, project: row.project,
                     question: row.attention.isQuestion ? row.question : nil)

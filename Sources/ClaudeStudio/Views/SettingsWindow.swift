@@ -157,6 +157,9 @@ struct SettingsView: View {
             toggleRow("Show a notification banner",
                       note: "A short summary as a system notification.",
                       isOn: $settings.notifyEnabled)
+            toggleRow("Also notify when a turn finishes",
+                      note: "Off: only when Claude asks you something.",
+                      isOn: $settings.notifyFinishedTurns)
             toggleRow("Badge the Dock icon",
                       note: "The number of sessions waiting for you appears on the Dock.",
                       isOn: $settings.badgeEnabled, last: true)

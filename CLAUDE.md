@@ -236,9 +236,19 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   is proof. The hook only gets a say when tmux cannot be read, and even then the
   sixty-second idle Notification is refused by its message text — it fires on
   every finished turn left alone for a minute and would put all of them back into
-  orange permanently. `Tmux.capturePanes` reads every waiting session in ONE
+  orange permanently. The hook script drops that reminder before writing anything
+  (`idle_prompt` or "waiting for your input"): rewriting the file bumped `ts` past
+  the `seen` mark, so a turn already read came back as `done` and announced itself
+  a second time. `Tmux.capturePanes` reads every waiting session in ONE
   chained call, and only sessions `list-panes` just confirmed: a `capture-pane` on
   a session that has gone takes the whole batch's output with it.
+- **What gets announced**: only a QUESTION (`waiting`) by default. A finished turn
+  (`done`) announces only with `notify.finishedTurns` on the Mac, and on the phone
+  only for a device whose `preferences.finished` is set — the watcher marks such a
+  push `finished: true` and `push.wants` drops it otherwise. Both default to off: a
+  banner for every finished turn ("Finished — nothing to answer.") was most of the
+  noise, and it buried the one that needed an answer. The test push carries no
+  `finished` flag, so it is never filtered.
 - **Green is checked against the screen too.** `Stop` only fires when Claude
   finishes cleanly, so a session killed mid-turn — or one whose client went away —
   keeps a state file that says `working` forever, and the dot stayed green over a
