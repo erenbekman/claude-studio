@@ -18,7 +18,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("sound.onRunFinish")   var soundOnRunFinish = true
     /// Show a notification banner.
     @AppStorage("notify.enabled")      var notifyEnabled = true
-    @AppStorage("notify.finishedTurns") var notifyFinishedTurns = false
+    @AppStorage("notify.finishedAfterMinutes") var notifyFinishedAfterMinutes = -1
     /// Show the number of waiting sessions on the Dock icon.
     @AppStorage("notify.badge")        var badgeEnabled = true
     /// Terminal font size.
@@ -39,6 +39,8 @@ final class AppSettings: ObservableObject {
     @AppStorage("rail.order")          var railOrder = ""
 
     /// Selectable system sounds — all ship with macOS.
+    static let finishedAfterChoices = [-1, 0, 2, 5, 10, 15]
+
     static let sounds = ["Glass", "Ping", "Pop", "Submarine", "Blow", "Bottle",
                          "Frog", "Funk", "Hero", "Morse", "Purr", "Sosumi", "Tink"]
 
@@ -50,11 +52,13 @@ final class AppSettings: ObservableObject {
     /// for a finished report and for a permission prompt alike, which is the same
     /// flattening the orange dot used to do: the banner that actually needs you
     /// read exactly like the twelve that did not.
-    func announceWaiting(session: String, project: String, question: String? = nil) {
+    func announceWaiting(session: String, project: String,
+                         question: String? = nil, summary: String? = nil) {
         if soundEnabled { Notify.play(soundName) }
         if notifyEnabled {
             Notify.post(title: project, subtitle: session,
-                        body: question?.nilIfEmpty ?? "Finished — nothing to answer.",
+                        body: question?.nilIfEmpty ?? summary?.nilIfEmpty
+                            ?? "Finished — nothing to answer.",
                         sound: nil)
         }
     }

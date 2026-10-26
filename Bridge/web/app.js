@@ -1019,7 +1019,7 @@ async function openSettings() {
   }
 
   $("push-silent").checked = Boolean(status.preferences?.silent)
-  $("push-finished").checked = Boolean(status.preferences?.finished)
+  $("push-finished").value = String(status.preferences?.finishedAfter ?? -1)
   renderProjectChoices(status.preferences?.projects ?? [])
 }
 
@@ -1174,7 +1174,7 @@ $("push-finished").onchange = async (event) => {
     method: "POST",
     body: JSON.stringify({
       endpoint: subscription.endpoint,
-      preferences: { finished: event.target.checked },
+      preferences: { finishedAfter: Number(event.target.value) },
     }),
   }).catch((error) => toast(error.message))
 }

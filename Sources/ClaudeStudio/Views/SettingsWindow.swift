@@ -157,9 +157,20 @@ struct SettingsView: View {
             toggleRow("Show a notification banner",
                       note: "A short summary as a system notification.",
                       isOn: $settings.notifyEnabled)
-            toggleRow("Also notify when a turn finishes",
-                      note: "Off: only when Claude asks you something.",
-                      isOn: $settings.notifyFinishedTurns)
+            row("Notify when a turn finishes",
+                note: "A question always notifies. A finished turn shows Claude's last line.") {
+                Picker("", selection: $settings.notifyFinishedAfterMinutes) {
+                    ForEach(AppSettings.finishedAfterChoices, id: \.self) { minutes in
+                        switch minutes {
+                        case -1: Text("Never").tag(minutes)
+                        case 0:  Text("Always").tag(minutes)
+                        default: Text("After \(minutes) min").tag(minutes)
+                        }
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 140)
+            }
             toggleRow("Badge the Dock icon",
                       note: "The number of sessions waiting for you appears on the Dock.",
                       isOn: $settings.badgeEnabled, last: true)

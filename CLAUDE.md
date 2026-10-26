@@ -242,13 +242,18 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   a second time. `Tmux.capturePanes` reads every waiting session in ONE
   chained call, and only sessions `list-panes` just confirmed: a `capture-pane` on
   a session that has gone takes the whole batch's output with it.
-- **What gets announced**: only a QUESTION (`waiting`) by default. A finished turn
-  (`done`) announces only with `notify.finishedTurns` on the Mac, and on the phone
-  only for a device whose `preferences.finished` is set — the watcher marks such a
-  push `finished: true` and `push.wants` drops it otherwise. Both default to off: a
-  banner for every finished turn ("Finished — nothing to answer.") was most of the
-  noise, and it buried the one that needed an answer. The test push carries no
-  `finished` flag, so it is never filtered.
+- **What gets announced**: a QUESTION (`waiting`) always. A finished turn (`done`)
+  only when the turn ran at least as long as the user's threshold:
+  `notify.finishedAfterMinutes` on the Mac, `preferences.finishedAfter` per device on
+  the phone; `-1` is never (the default on both), `0` is always. A banner for every
+  finished turn ("Finished — nothing to answer.") was most of the noise and buried
+  the one that needed an answer. The turn's clock starts on every transition INTO
+  `working` — including the one out of a question, so the time the user took to
+  answer is not counted — and is dropped once the session is neither working nor
+  waiting, so a turn too short for the poll to see measures zero instead of
+  inheriting the previous turn's start. The body is the session's last spoken line
+  (`PaneReader.lastSpokenLine` / `lastSpokenLine` in `choices.mjs`). The test push
+  carries no `finished` flag, so it is never filtered.
 - **Green is checked against the screen too.** `Stop` only fires when Claude
   finishes cleanly, so a session killed mid-turn — or one whose client went away —
   keeps a state file that says `working` forever, and the dot stayed green over a
