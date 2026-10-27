@@ -25,6 +25,7 @@ struct Sidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            ProjectSwitcherButton(model: model)
             navigation
             header
 
@@ -183,6 +184,25 @@ struct Sidebar: View {
 
     private var navigation: some View {
         VStack(spacing: 1) {
+            Button { model.newSession() } label: {
+                HoverRow(padding: EdgeInsets(top: 5, leading: 8, bottom: 5, trailing: 8), radius: 6) {
+                    HStack(spacing: 9) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundStyle(theme.text2)
+                            .frame(width: 16)
+                        Text("New session")
+                            .font(Theme.ui(12.5))
+                            .foregroundStyle(theme.text)
+                        Spacer(minLength: 4)
+                        Text("⌘N")
+                            .font(Theme.ui(10.5))
+                            .foregroundStyle(theme.text3)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 4)
             ForEach(StudioModel.orderedPanes) { pane in
                 Button { model.pane = pane } label: {
                     HoverRow(selected: model.pane == pane,
@@ -190,7 +210,7 @@ struct Sidebar: View {
                              radius: 6) {
                         HStack(spacing: 9) {
                             Image(systemName: pane.icon)
-                                .font(.system(size: 12))
+                                .font(.system(size: 13, weight: .light))
                                 .foregroundStyle(model.pane == pane ? theme.text : theme.text3)
                                 .frame(width: 16)
                             Text(pane.label)
@@ -239,6 +259,7 @@ struct Sidebar: View {
     private var footer: some View {
         HStack(spacing: 6) {
             IconButton(icon: "gearshape", help: "Settings (⌘,)") { SettingsWindow.show() }
+            IconButton(icon: "paintpalette", help: "Appearance") { model.themeSheetOpen = true }
             Text(footerText)
                 .font(Theme.ui(10.5))
                 .foregroundStyle(theme.text3)
@@ -562,12 +583,15 @@ struct Sidebar: View {
                                 .foregroundStyle(theme.text)
                                 .lineLimit(1)
                         }
-                        Text(model.canResume(record)
-                             ? "resumes conversation · \(record.lastUsed.relative)"
-                             : "starts fresh · \(record.lastUsed.relative)")
-                            .font(Theme.ui(10.5))
-                            .foregroundStyle(theme.text3)
-                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            Image(systemName: model.canResume(record) ? "arrow.uturn.backward" : "sparkle")
+                                .font(.system(size: 9, weight: .light))
+                            Text(record.lastUsed.relative)
+                                .font(Theme.ui(10.5))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(theme.text3)
+                        .help(model.canResume(record) ? "Resumes the conversation" : "Starts fresh")
                     }
                     Spacer(minLength: 4)
                 }

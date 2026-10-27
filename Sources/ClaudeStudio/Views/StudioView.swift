@@ -290,8 +290,15 @@ private struct TabBar: View {
 
     private func item(_ tab: StudioTab) -> some View {
         let selected = model.activeTabID == tab.id
+        let visible = selected || (model.splitPanes != nil && !model.splitMaximized
+                                   && model.splitTabs?.contains(tab.id) == true)
         return HStack(spacing: 7) {
-            StatusDot(color: dotColor(tab), size: 5)
+            TabKindIcon(kind: tab.kind)
+                .overlay(alignment: .bottomTrailing) {
+                    StatusDot(color: dotColor(tab), size: 5)
+                        .background(Circle().fill(visible ? theme.surface : theme.chromeBase).padding(-1.5))
+                        .offset(x: 2, y: 2)
+                }
             if renaming == tab.id {
                 // Focused as it appears, or the keystrokes go to the terminal below.
                 TextField("session name", text: $renameText)
@@ -328,7 +335,7 @@ private struct TabBar: View {
         .frame(height: 30)
         .background(
             UnevenRoundedRectangle(topLeadingRadius: 7, topTrailingRadius: 7, style: .continuous)
-                .fill(selected ? theme.surface : Color.clear)
+                .fill(visible ? theme.surface : Color.clear)
         )
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { beginRename(tab) }
@@ -341,6 +348,13 @@ private struct TabBar: View {
                 }
                 Divider()
             }
+            if model.activeTabID != tab.id {
+                Button("Open in split") { model.openInSplit(tab.id) }
+            }
+            if model.splitTabs?.contains(tab.id) == true {
+                Button("Close pane") { model.closePane(tab.id) }
+            }
+            Divider()
             Button("Close tab") { model.closeTab(id: tab.id) }
         }
     }
@@ -501,7 +515,7 @@ private struct StatusBar: View {
 
     private func item(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 9.5))
+            Image(systemName: icon).font(.system(size: 10, weight: .light))
             Text(text).font(Theme.mono(10.5))
         }
     }

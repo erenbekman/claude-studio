@@ -5,24 +5,97 @@ import AppKit
 struct ContentArea: View {
     @Environment(\.studioTheme) private var theme
     @ObservedObject var model: StudioModel
+    @State private var fraction: CGFloat = 0.5
+    @State private var dragStart: CGFloat?
 
     var body: some View {
         Group {
-            if let tab = model.activeTab {
-                content(for: tab)
+            if let panes = model.splitPanes, !model.splitMaximized {
+                split(panes)
+            } else if let tab = model.activeTab {
+                card(tab, split: false)
             } else {
                 EmptyStudio(model: model)
             }
         }
+        .padding(.horizontal, 6)
+        .padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.surface)
+        .background(theme.chromeBase)
+    }
+
+    private func split(_ panes: [StudioTab]) -> some View {
+        GeometryReader { geometry in
+            let horizontal = model.splitAxis == .horizontal
+            let total = (horizontal ? geometry.size.width : geometry.size.height) - 6
+            let first = max(180, min(total - 180, total * fraction))
+            if horizontal {
+                HStack(spacing: 0) {
+                    card(panes[0], split: true).frame(width: first)
+                    divider(horizontal: true, first: first, total: total)
+                    card(panes[1], split: true)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    card(panes[0], split: true).frame(height: first)
+                    divider(horizontal: false, first: first, total: total)
+                    card(panes[1], split: true)
+                }
+            }
+        }
+    }
+
+    private func divider(horizontal: Bool, first: CGFloat, total: CGFloat) -> some View {
+        Color.clear
+            .frame(width: horizontal ? 6 : nil, height: horizontal ? nil : 6)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside {
+                    (horizontal ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        let start = dragStart ?? first
+                        dragStart = start
+                        let moved = horizontal ? value.translation.width : value.translation.height
+                        fraction = max(0.15, min(0.85, (start + moved) / max(total, 1)))
+                    }
+                    .onEnded { _ in dragStart = nil }
+            )
+    }
+
+    private func card(_ tab: StudioTab, split: Bool) -> some View {
+        let focused = model.activeTabID == tab.id
+        return content(for: tab, focused: focused, split: split)
+            .overlay(alignment: .bottomTrailing) {
+                if split && !tab.kind.isTerminal {
+                    PaneControls(model: model, tab: tab)
+                        .padding(4)
+                        .background(Capsule().fill(theme.chromeBase))
+                        .padding(8)
+                }
+            }
+            .background(theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(split && focused ? theme.accent.opacity(0.45) : theme.separator.opacity(0.45))
+            )
+            .simultaneousGesture(TapGesture().onEnded {
+                if model.activeTabID != tab.id { model.activeTabID = tab.id }
+            })
+            .id(tab.id)
     }
 
     @ViewBuilder
-    private func content(for tab: StudioTab) -> some View {
+    private func content(for tab: StudioTab, focused: Bool, split: Bool) -> some View {
         switch tab.kind {
         case .session, .terminal, .service, .script:
-            TerminalPane(model: model, tab: tab)
+            TerminalPane(model: model, tab: tab, focused: focused, split: split)
         case .command:
             if let command = model.claudeCommands.command(named: tab.ref) {
                 ClaudeCommandPane(model: model, command: command)
@@ -111,10 +184,42 @@ private struct EmptyStudio: View {
 
 // MARK: - Terminal
 
+struct PaneControls: View {
+    @ObservedObject var model: StudioModel
+    let tab: StudioTab
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if model.splitPanes != nil {
+                IconButton(icon: model.splitMaximized ? "arrow.down.right.and.arrow.up.left"
+                                                      : "arrow.up.left.and.arrow.down.right",
+                           help: model.splitMaximized ? "Restore split" : "Maximize pane") {
+                    model.activeTabID = tab.id
+                    model.splitMaximized.toggle()
+                }
+                IconButton(icon: "xmark", help: "Close pane (keeps the tab)") {
+                    model.closePane(tab.id)
+                }
+            } else {
+                IconButton(icon: "rectangle.split.2x1", help: "Split right (⌘D)") {
+                    model.activeTabID = tab.id
+                    model.split(.horizontal)
+                }
+                IconButton(icon: "rectangle.split.1x2", help: "Split down (⌘⇧D)") {
+                    model.activeTabID = tab.id
+                    model.split(.vertical)
+                }
+            }
+        }
+    }
+}
+
 private struct TerminalPane: View {
     @Environment(\.studioTheme) private var theme
     @ObservedObject var model: StudioModel
     let tab: StudioTab
+    var focused = true
+    var split = false
     @State private var editingTitle = false
     @State private var draftTitle = ""
     @FocusState private var titleFocused: Bool
@@ -125,7 +230,11 @@ private struct TerminalPane: View {
             if tab.kind == .session, model.sessionNeedsReopen(tab.terminalKey) {
                 linkNotice
             }
-            TerminalHost(key: tab.terminalKey, engine: model.engine)
+            TerminalHost(key: tab.terminalKey, engine: model.engine, focused: focused) {
+                if model.activeTabID != tab.id { model.activeTabID = tab.id }
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 6)
         }
     }
 
@@ -152,6 +261,7 @@ private struct TerminalPane: View {
 
     private var header: some View {
         HStack(spacing: 10) {
+            TabKindIcon(kind: tab.kind, size: 12)
             if editingTitle {
                 // The field must take focus the moment it appears; otherwise your
                 // keystrokes go to the terminal and renaming "does not work".
@@ -207,11 +317,12 @@ private struct TerminalPane: View {
                 .truncationMode(.head)
 
             actions
+            PaneControls(model: model, tab: tab)
         }
         .padding(.horizontal, 12)
-        .frame(height: 34)
+        .frame(height: 36)
         .background(theme.surface)
-        .overlay(alignment: .bottom) { Rectangle().fill(theme.separator).frame(height: 1) }
+        .opacity(split && !focused ? 0.7 : 1)
     }
 
     @ViewBuilder private var actions: some View {

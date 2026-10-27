@@ -62,7 +62,7 @@ Sources/ClaudeStudio/
 │   └── StudioModel.swift      # all state for one window
 └── Views/                 # Windows, RootView, WelcomeView, StudioView, Sidebar, Detail,
                            # Sheets, SettingsWindow, CommandPalette, Markdown, TerminalHost,
-                           # ChangesSheet, ConversationsSheet,
+                           # ChangesSheet, ConversationsSheet, ProjectSwitcher,
                            # Island (the panel above every app, owned by no window)
 
 Sources/StudioBridge/       # second executable: the MCP server the app registers with
@@ -277,6 +277,21 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   sentence case with an icon (`SectionLabel(text:icon:)`), never uppercase. Unread is
   a dot at the right edge of the row, not bold text. The panes are a menu at the top
   of the sidebar (icon + name, right-click to reorder); there is no activity rail.
+  The project row at the very top of the sidebar is the project switcher (⌘⇧O):
+  other recent projects with their live session counts from `SessionStates`, ⌘1–9 to
+  jump, Enter for the highlighted one; each still opens in its own window.
+- **Split panes** (`StudioModel.splitTabs`, ⌘D right, ⌘⇧D down, "Open in split" on a
+  tab): two tabs side by side, each a rounded card on the chrome. `activeTabID` is
+  always the FOCUSED pane; choosing any other tab replaces the focused pane, never
+  the other one. A click inside a terminal focuses its pane through a local
+  mouse-down monitor in `TerminalContainer` (SwiftUI gestures never see clicks that
+  land in an NSView), and keyboard focus moves only on a false→true transition of
+  `focused`, so a text field in a pane header keeps its focus while you type.
+  Closing a tab that is in a pane ends the split; "Close pane" ends it and keeps the
+  tab. Tabs carry a kind icon (Claude's asterisk in its orange) with the state dot
+  on its corner.
+  Icons are outline SF Symbols at light weight in the tertiary text colour (12–13 pt
+  in rows and buttons); filled glyphs only for state (bell, bookmark).
 - **Plan usage** (`PlanUsage`, the "Used" meter at the left of the status bar): read
   from `cachedUsageUtilization.utilization.limits` in `~/.claude.json`, the cache
   Claude Code itself refreshes. Only that key is read and only when the file's mtime

@@ -74,7 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 /// Commands routed from the menu to the key window; applied by `WindowManager.perform`.
 enum StudioCommand {
-    case openFolder, newSession, newTerminal, newTab, closeTab, nextTab, previousTab, palette
+    case openFolder, newSession, newTerminal, newTab, closeTab, nextTab, previousTab, palette, switchProject
+    case splitRight, splitDown
     case selectTab(Int)
 }
 
@@ -116,6 +117,9 @@ enum MainMenuBuilder {
         fileMenu.addItem(action(title: "Open Folder…", key: "o", modifiers: .command) {
             WindowManager.shared.perform(.openFolder)
         })
+        fileMenu.addItem(action(title: "Switch Project…", key: "o", modifiers: [.command, .shift]) {
+            WindowManager.shared.perform(.switchProject)
+        })
         fileMenu.addItem(.separator())
         fileMenu.addItem(action(title: "New Claude Session", key: "n", modifiers: .command) {
             WindowManager.shared.perform(.newSession)
@@ -155,6 +159,12 @@ enum MainMenuBuilder {
             WindowManager.shared.perform(.palette)
         })
         viewMenu.addItem(.separator())
+        viewMenu.addItem(action(title: "Split Right", key: "d", modifiers: .command) {
+            WindowManager.shared.perform(.splitRight)
+        })
+        viewMenu.addItem(action(title: "Split Down", key: "d", modifiers: [.command, .shift]) {
+            WindowManager.shared.perform(.splitDown)
+        })
         viewMenu.addItem(action(title: "Next Tab", key: "]", modifiers: [.command, .shift]) {
             WindowManager.shared.perform(.nextTab)
         })

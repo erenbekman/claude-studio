@@ -38,14 +38,14 @@ final class StudioModel: ObservableObject {
         }
         var icon: String {
             switch self {
-            case .sessions:  return "bubble.left.and.bubble.right"
+            case .sessions:  return "bubble.left"
             case .skills:    return "sparkles"
             case .mcp:       return "point.3.connected.trianglepath.dotted"
-            case .cron:      return "clock"
-            case .services:  return "server.rack"
-            case .commands:  return "slash.circle"
-            case .scripts:   return "bolt"
-            case .terminals: return "terminal"
+            case .cron:      return "calendar.badge.clock"
+            case .services:  return "shippingbox"
+            case .commands:  return "command"
+            case .scripts:   return "scroll"
+            case .terminals: return "apple.terminal"
             }
         }
         var help: String {
@@ -108,6 +108,16 @@ final class StudioModel: ObservableObject {
     @Published var activeTabID: String? {
         didSet {
             guard activeTabID != oldValue else { return }
+            if var panes = splitTabs {
+                if let active = activeTabID {
+                    if !panes.contains(active) {
+                        panes[oldValue.flatMap { panes.firstIndex(of: $0) } ?? 1] = active
+                        splitTabs = panes
+                    }
+                } else {
+                    splitTabs = nil
+                }
+            }
             SessionStates.shared.setVisibleTab(activeTabID, for: ObjectIdentifier(self))
             refreshSessionHeader()
         }
@@ -124,6 +134,10 @@ final class StudioModel: ObservableObject {
     /// ⌘P palette visibility.
     @Published var paletteOpen = false
     @Published var conversationsOpen = false
+    @Published var splitTabs: [String]?
+    @Published var splitAxis: SplitAxis = .horizontal
+    @Published var splitMaximized = false
+    @Published var projectSwitcherOpen = false
     @Published var changesOpen = false
     /// Appearance sheet visibility. On the model rather than in the view, so the
     /// command palette can open it too.
@@ -1309,6 +1323,14 @@ final class StudioModel: ObservableObject {
 
         tabs.remove(at: index)
         if tab.kind == .service || tab.kind == .script { engine.discard(tab.terminalKey) }
+        if let panes = splitTabs, panes.contains(id) {
+            splitTabs = nil
+            splitMaximized = false
+            if activeTabID == id, let other = panes.first(where: { $0 != id }) {
+                activeTabID = other
+                return
+            }
+        }
         if activeTabID == id {
             activeTabID = tabs.indices.contains(index) ? tabs[index].id : tabs.last?.id
         }
@@ -1317,6 +1339,51 @@ final class StudioModel: ObservableObject {
     /// Drag-reorder in the tab bar. The order is this window's, for as long as it
     /// is open — it is not written to `.cs`, because tabs are what you happen to
     /// have open, not part of the project.
+    enum SplitAxis { case horizontal, vertical }
+
+    var splitPanes: [StudioTab]? {
+        guard let ids = splitTabs, ids.count == 2, ids[0] != ids[1] else { return nil }
+        let panes = ids.compactMap { id in tabs.first { $0.id == id } }
+        return panes.count == 2 ? panes : nil
+    }
+
+    func split(_ axis: SplitAxis) {
+        guard let active = activeTabID else { return }
+        splitAxis = axis
+        splitMaximized = false
+        if splitTabs != nil { return }
+        if let other = tabs.last(where: { $0.id != active })?.id {
+            splitTabs = [active, other]
+        } else {
+            newTerminal()
+            guard let created = activeTabID, created != active else { return }
+            splitTabs = [active, created]
+        }
+    }
+
+    func openInSplit(_ id: String) {
+        guard let active = activeTabID, active != id else { return }
+        splitMaximized = false
+        if var panes = splitTabs {
+            guard !panes.contains(id), let other = panes.firstIndex(where: { $0 != active }) else {
+                activeTabID = id
+                return
+            }
+            panes[other] = id
+            splitTabs = panes
+        } else {
+            splitTabs = [active, id]
+        }
+        activeTabID = id
+    }
+
+    func closePane(_ id: String) {
+        guard let panes = splitTabs, panes.contains(id) else { return }
+        splitTabs = nil
+        splitMaximized = false
+        if let other = panes.first(where: { $0 != id }) { activeTabID = other }
+    }
+
     func moveTab(_ id: String, before other: String) {
         guard id != other, let from = tabs.firstIndex(where: { $0.id == id }) else { return }
         let tab = tabs.remove(at: from)

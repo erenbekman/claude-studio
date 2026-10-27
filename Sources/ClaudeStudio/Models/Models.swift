@@ -530,3 +530,24 @@ extension Date {
         return f.string(from: self)
     }
 }
+
+extension StudioTab.Kind {
+    var isTerminal: Bool {
+        switch self {
+        case .session, .terminal, .service, .script: return true
+        case .command, .skill, .cron:                return false
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .session:  return "asterisk"
+        case .terminal: return "apple.terminal"
+        case .service:  return "shippingbox"
+        case .script:   return "scroll"
+        case .command:  return "command"
+        case .skill:    return "sparkles"
+        case .cron:     return "calendar.badge.clock"
+        }
+    }
+}

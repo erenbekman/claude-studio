@@ -353,8 +353,8 @@ struct SectionLabel: View {
         HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 10.5))
-                    .frame(width: 14)
+                    .font(.system(size: 11, weight: .light))
+                    .frame(width: 16)
             }
             Text(text.prefix(1).uppercased() + text.dropFirst())
                 .font(Theme.ui(11.5, .medium))
@@ -406,7 +406,7 @@ struct SmallButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let icon { Image(systemName: icon).font(.system(size: 9.5, weight: .semibold)) }
+                if let icon { Image(systemName: icon).font(.system(size: 10.5, weight: .regular)) }
                 Text(title).font(Theme.ui(11.5))
             }
             .padding(.horizontal, 10)
@@ -439,8 +439,8 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(hovering ? theme.text : (tint ?? theme.text2))
+                .font(.system(size: 12, weight: .light))
+                .foregroundStyle(hovering ? theme.text : (tint ?? theme.text3))
                 .frame(width: 22, height: 22)
                 .background(RoundedRectangle(cornerRadius: 5).fill(hovering ? theme.hover : .clear))
                 .contentShape(Rectangle())
@@ -448,5 +448,18 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .help(help)
         .onHover { hovering = $0 }
+    }
+}
+
+struct TabKindIcon: View {
+    let kind: StudioTab.Kind
+    var size: CGFloat = 11
+    @Environment(\.studioTheme) private var theme
+
+    var body: some View {
+        Image(systemName: kind.icon)
+            .font(.system(size: size, weight: kind == .session ? .semibold : .light))
+            .foregroundStyle(kind == .session ? Theme.accent : theme.text3)
+            .frame(width: size + 4, height: size + 4)
     }
 }

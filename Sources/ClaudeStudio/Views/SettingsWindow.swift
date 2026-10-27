@@ -12,12 +12,14 @@ enum SettingsWindow {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        let panel = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 460),
-                             styleMask: [.titled, .closable, .fullSizeContentView],
+        let panel = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 580),
+                             styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
         panel.title = "Settings"
         panel.titlebarAppearsTransparent = true
+        panel.titleVisibility = .hidden
         panel.isReleasedWhenClosed = false
+        panel.contentMinSize = NSSize(width: 720, height: 480)
         panel.center()
         panel.contentView = NSHostingView(rootView: SettingsView())
         panel.makeKeyAndOrderFront(nil)
@@ -57,10 +59,19 @@ struct SettingsView: View {
         var icon: String {
             switch self {
             case .notifications: return "bell"
-            case .terminal:      return "terminal"
-            case .sessions:      return "bubble.left.and.bubble.right"
+            case .terminal:      return "apple.terminal"
+            case .sessions:      return "bubble.left"
             case .phone:         return "iphone"
             case .about:         return "info.circle"
+            }
+        }
+        var subtitle: String {
+            switch self {
+            case .notifications: return "When Claude Studio interrupts you, and how."
+            case .terminal:      return "How terminals and Claude sessions are drawn."
+            case .sessions:      return "What happens to sessions across launches."
+            case .phone:         return "Answer Claude from your phone, over your private network."
+            case .about:         return "Version and updates."
             }
         }
     }
@@ -68,10 +79,10 @@ struct SettingsView: View {
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-            Rectangle().fill(Theme.separator).frame(width: 1)
+            Rectangle().fill(Theme.separator.opacity(0.5)).frame(width: 1)
             content
         }
-        .frame(width: 720, height: 460)
+        .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         .background(Theme.bg)
     }
 
@@ -79,15 +90,21 @@ struct SettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Spacer().frame(height: 34)
+            Spacer().frame(height: 40)
+            Text("Settings")
+                .font(Theme.ui(11.5, .medium))
+                .foregroundStyle(Theme.text3)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 6)
             ForEach(Section.allCases) { item in
                 Button { section = item } label: {
                     HoverRow(selected: section == item,
-                             padding: EdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10)) {
+                             padding: EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10),
+                             radius: 6) {
                         HStack(spacing: 9) {
                             Image(systemName: item.icon)
-                                .font(.system(size: 12))
-                                .foregroundStyle(section == item ? Theme.accent : Theme.text3)
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundStyle(section == item ? Theme.text : Theme.text3)
                                 .frame(width: 16)
                             Text(item.title)
                                 .font(Theme.ui(12.5))
@@ -101,7 +118,7 @@ struct SettingsView: View {
             Spacer()
         }
         .padding(.horizontal, 8)
-        .frame(width: 190)
+        .frame(width: 210)
         .frame(maxHeight: .infinity)
         .background(Theme.chrome)
     }
@@ -112,9 +129,13 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text(section.title)
-                    .font(Theme.ui(16, .semibold))
+                    .font(Theme.ui(20, .semibold))
                     .foregroundStyle(Theme.text)
-                    .padding(.bottom, 18)
+                Text(section.subtitle)
+                    .font(Theme.ui(12.5))
+                    .foregroundStyle(Theme.text3)
+                    .padding(.top, 4)
+                    .padding(.bottom, 22)
 
                 switch section {
                 case .notifications: notifications
@@ -124,9 +145,10 @@ struct SettingsView: View {
                 case .about:         about
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 34)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 32)
+            .padding(.top, 44)
+            .padding(.bottom, 32)
+            .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
@@ -449,7 +471,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
 
-                Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 16)
+                Rectangle().fill(Theme.separator.opacity(0.5)).frame(height: 1).padding(.horizontal, 16)
             } else if bridge.isInstalled {
                 // The QR code used to simply not be there, with nothing in its place.
                 // It is the one thing this screen exists to hand over, so its absence
@@ -469,7 +491,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
 
-                Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 16)
+                Rectangle().fill(Theme.separator.opacity(0.5)).frame(height: 1).padding(.horizontal, 16)
             }
 
             row("New link",
@@ -557,7 +579,7 @@ struct SettingsView: View {
             .padding(.vertical, 12)
 
             if guideOpen {
-                Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 16)
+                Rectangle().fill(Theme.separator.opacity(0.5)).frame(height: 1).padding(.horizontal, 16)
 
                 VStack(alignment: .leading, spacing: 14) {
                     step(1, "Put both devices on one private network",
@@ -690,7 +712,7 @@ struct SettingsView: View {
             }
             .padding(16)
 
-            Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 16)
+            Rectangle().fill(Theme.separator.opacity(0.5)).frame(height: 1).padding(.horizontal, 16)
 
             row("Version \(updater.currentVersion)", note: updateNote) {
                 updateControl
@@ -743,10 +765,8 @@ struct SettingsView: View {
     // MARK: - Row components
 
     private var card: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(Theme.field)
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Theme.separator))
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(Theme.hover)
     }
 
     private func toggleRow(_ title: String, note: String,
@@ -768,9 +788,9 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(Theme.ui(12.5)).foregroundStyle(Theme.text)
+                    Text(title).font(Theme.ui(13)).foregroundStyle(Theme.text)
                     Text(note)
-                        .font(Theme.ui(11))
+                        .font(Theme.ui(11.5))
                         .foregroundStyle(Theme.text3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -778,10 +798,10 @@ struct SettingsView: View {
                 control()
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 13)
 
             if !last {
-                Rectangle().fill(Theme.separator).frame(height: 1).padding(.leading, 16)
+                Rectangle().fill(Theme.separator.opacity(0.5)).frame(height: 1).padding(.horizontal, 16)
             }
         }
     }
