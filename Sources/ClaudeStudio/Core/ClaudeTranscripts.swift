@@ -183,7 +183,7 @@ enum ClaudeTranscripts {
         return matches.ids
     }
 
-    private static func fold(_ bytes: inout [UInt8]) {
+    static func fold(_ bytes: inout [UInt8]) {
         bytes.withUnsafeMutableBufferPointer { buffer in
             let count = buffer.count
             var index = 0

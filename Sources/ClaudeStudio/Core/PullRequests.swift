@@ -21,8 +21,12 @@ enum PullRequests {
         guard let gh else { return nil }
         let result = Shell.run(gh, ["pr", "view", "--json", "number,title,url,state,isDraft,statusCheckRollup"],
                                cwd: path, env: ["GH_PROMPT_DISABLED": "1", "NO_COLOR": "1"])
-        guard result.status == 0,
-              let object = try? JSONSerialization.jsonObject(with: Data(result.output.utf8)) as? [String: Any],
+        guard result.status == 0 else { return nil }
+        return parse(Data(result.output.utf8))
+    }
+
+    static func parse(_ json: Data) -> Status? {
+        guard let object = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
               let number = object["number"] as? Int,
               let link = (object["url"] as? String).flatMap(URL.init(string:))
         else { return nil }

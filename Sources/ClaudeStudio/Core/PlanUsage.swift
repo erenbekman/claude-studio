@@ -74,8 +74,12 @@ final class PlanUsage: ObservableObject {
     }
 
     nonisolated private static func read(_ file: URL) -> (limits: [Limit], fetchedAt: Date?) {
-        guard let data = try? Data(contentsOf: file),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard let data = try? Data(contentsOf: file) else { return ([], nil) }
+        return parse(data)
+    }
+
+    nonisolated static func parse(_ data: Data) -> (limits: [Limit], fetchedAt: Date?) {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let cache = root["cachedUsageUtilization"] as? [String: Any],
               let utilization = cache["utilization"] as? [String: Any],
               let entries = utilization["limits"] as? [[String: Any]]

@@ -294,7 +294,10 @@ final class StudioModel: ObservableObject {
         engine.refreshExternalStatuses(store.config.services)
 
         headerTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
-            Task { @MainActor in self.refreshSessionHeader() }
+            Task { @MainActor in
+                guard NSApp.isActive else { return }
+                self.refreshSessionHeader()
+            }
         }
         refreshSessionHeader()
 
@@ -1430,13 +1433,13 @@ final class StudioModel: ObservableObject {
         let key = tab?.terminalKey
         let sid = key.flatMap { engine.claudeSIDs[$0] } ?? tab.flatMap { store.session(tmux: $0.ref)?.claudeSID }
         let tmux = Tmux.isAvailable ? tab?.ref : nil
-        let previousMode = key.flatMap { sessionDetails[$0]?.mode }
+        let previous = key.flatMap { sessionDetails[$0] }
         Task.detached(priority: .utility) {
             let summary = GitChanges.summary(at: path)
             let pull = checkPullRequest ? PullRequests.status(at: path) : nil
             let details = key == nil ? nil
                 : SessionDetails.read(projectPath: path, sessionID: sid, tmux: tmux,
-                                      previousMode: previousMode)
+                                      previous: previous)
             await MainActor.run {
                 if self.changes != summary { self.changes = summary }
                 if checkPullRequest, self.pullRequest != pull { self.pullRequest = pull }

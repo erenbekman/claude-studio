@@ -15,6 +15,7 @@ The app's language is **English** — user-facing strings, code and comments ali
 
 ```bash
 swift build      # fast compile check
+swift test       # unit tests (Tests/ClaudeStudioTests): parsing and pure logic only
 ./build.sh       # release build + "Claude Studio.app" bundle
 ./install.sh     # build + install into /Applications + launch
 ./dist.sh        # release artifact: ClaudeStudio.zip (asset name the updater expects)
@@ -24,6 +25,16 @@ Release flow: bump `VERSION` → `./dist.sh` → commit and push →
 `gh release create v<VERSION> ClaudeStudio.zip --title "Claude Studio v<VERSION>" --notes "…"`.
 `VERSION` is the single source of truth; `build.sh` and `dist.sh` both read it, and
 `Updater` compares the installed `CFBundleShortVersionString` against the release tag.
+The repository it asks is `CSUpdateRepository` in `Info.plist`, which `build.sh`
+takes from `git remote get-url origin` (falling back to `ocracy/claude-studio`): a
+build made from a fork follows the fork's releases, so an upstream release can never
+offer to replace a fork's build with upstream's.
+
+Tests cover what can be checked without a window or tmux: transcript tail parsing,
+model names, mode footers, context limits, diff numbering, `gh` and usage JSON, the
+search case-fold. Logic that needs testing is pulled out of views into `Core` as a
+static function taking plain values (`GitChanges.numbered`, `PullRequests.parse`,
+`PlanUsage.parse`, `SessionDetails.parseTail`).
 
 ## Layout
 
@@ -323,6 +334,11 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   to all open terminals through `AppSettings.terminalAppearanceChanged`.
 - **Paste (⌘V)**: file URLs on the clipboard are typed as escaped paths; image data
   with no text is written to `dropped/` and typed as its path, same as a drop.
+- **Polling costs**: the session header refresh (2.5 s) is skipped while the app is
+  not active; the transcript tail is re-read only when its size or mtime changed
+  (`SessionDetails.transcriptStamp`); the header's git summary counts lines of at
+  most 200 untracked files of up to 256 KB each; ⌘F waits 150 ms after typing.
+  `SessionStates` keeps its own pace regardless — notifications depend on it.
 - **Plan usage** (`PlanUsage`, the "Used" meter at the left of the status bar): read
   from `cachedUsageUtilization.utilization.limits` in `~/.claude.json`, the cache
   Claude Code itself refreshes. Only that key is read and only when the file's mtime

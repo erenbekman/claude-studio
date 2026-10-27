@@ -18,9 +18,52 @@ enum GitChanges {
         var id: String { path }
     }
 
+    struct Line: Equatable {
+        var text: String
+        var old: Int?
+        var new: Int?
+        var commentable: Bool
+    }
+
+    static func numbered(_ patch: [String], untracked: Bool) -> [Line] {
+        if untracked {
+            return patch.enumerated().map { index, text in
+                let content = text.hasPrefix("+")
+                return Line(text: text, old: nil, new: content ? index + 1 : nil, commentable: content)
+            }
+        }
+        var old = 0, new = 0
+        var out: [Line] = []
+        for text in patch {
+            if text.hasPrefix("@@") {
+                let parts = text.split(separator: " ")
+                if parts.count > 2 {
+                    old = Int(parts[1].dropFirst().split(separator: ",").first ?? "") ?? 0
+                    new = Int(parts[2].dropFirst().split(separator: ",").first ?? "") ?? 0
+                }
+                out.append(Line(text: text, old: nil, new: nil, commentable: false))
+            } else if text.hasPrefix("+") {
+                out.append(Line(text: text, old: nil, new: new, commentable: true))
+                new += 1
+            } else if text.hasPrefix("-") {
+                out.append(Line(text: text, old: old, new: nil, commentable: true))
+                old += 1
+            } else if text.hasPrefix(" ") {
+                out.append(Line(text: text, old: old, new: new, commentable: true))
+                old += 1
+                new += 1
+            } else {
+                out.append(Line(text: text, old: nil, new: nil, commentable: false))
+            }
+        }
+        return out
+    }
+
     private static let git: String? = Shell.findExecutable(["/usr/bin/git", "/opt/homebrew/bin/git", "/usr/local/bin/git"])
     private static let untrackedLineLimit = 400
     private static let untrackedByteLimit = 2 * 1024 * 1024
+    private static let summaryLineCountLimit = 200
+    private static let summaryByteLimit = 256 * 1024
 
     static func summary(at path: String) -> Summary? {
         guard let numstat = run(["diff", "HEAD", "--relative", "--no-renames", "--numstat"], at: path) else { return nil }
@@ -32,9 +75,11 @@ enum GitChanges {
             summary.added += Int(fields[0]) ?? 0
             summary.removed += Int(fields[1]) ?? 0
         }
-        for file in untracked(at: path) {
+        for (index, file) in untracked(at: path).enumerated() {
             summary.files += 1
-            summary.added += lines(of: file, in: path)?.count ?? 0
+            if index < summaryLineCountLimit {
+                summary.added += lines(of: file, in: path, byteLimit: summaryByteLimit)?.count ?? 0
+            }
         }
         return summary
     }
@@ -72,10 +117,11 @@ enum GitChanges {
         return output.split(separator: "\n").map(String.init)
     }
 
-    private static func lines(of file: String, in root: String) -> [String]? {
+    private static func lines(of file: String, in root: String,
+                              byteLimit: Int = untrackedByteLimit) -> [String]? {
         let url = URL(fileURLWithPath: root).appendingPathComponent(file)
         guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
-              size <= untrackedByteLimit,
+              size <= byteLimit,
               let data = try? Data(contentsOf: url),
               !data.contains(0),
               let text = String(data: data, encoding: .utf8)

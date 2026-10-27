@@ -10,6 +10,8 @@ struct FindSheet: View {
     @State private var lines: [String] = []
     @State private var loading = true
     @State private var query = ""
+    @State private var needle = ""
+    @State private var debounce: Task<Void, Never>?
     @State private var caseSensitive = false
     @State private var selected: Int?
     @FocusState private var focused: Bool
@@ -20,7 +22,6 @@ struct FindSheet: View {
     }
 
     private var matches: [Match] {
-        let needle = query.trimmingCharacters(in: .whitespaces)
         guard needle.count >= 2 else { return [] }
         let options: String.CompareOptions = caseSensitive ? [] : [.caseInsensitive, .diacriticInsensitive]
         return lines.indices.reversed()
@@ -45,7 +46,7 @@ struct FindSheet: View {
                     .toggleStyle(.button)
                     .controlSize(.small)
                     .help("Match case")
-                Text(loading ? "Reading…" : query.count < 2 ? "\(lines.count) lines"
+                Text(loading ? "Reading…" : needle.count < 2 ? "\(lines.count) lines"
                      : "\(found.count)\(found.count == 500 ? "+" : "") matches")
                     .font(Theme.ui(11.5))
                     .foregroundStyle(theme.text3)
@@ -61,7 +62,7 @@ struct FindSheet: View {
                 placeholder("Reading the scrollback…")
             } else if lines.isEmpty {
                 placeholder(Tmux.isAvailable ? "Nothing in the scrollback yet." : "Searching needs tmux.")
-            } else if query.count < 2 {
+            } else if needle.count < 2 {
                 placeholder("Type at least two characters. The last 10,000 lines are searched, newest first.")
             } else if found.isEmpty {
                 placeholder("No matches.")
@@ -96,6 +97,15 @@ struct FindSheet: View {
         .frame(width: 980, height: 620)
         .background(theme.surface)
         .onAppear(perform: load)
+        .onChange(of: query) {
+            debounce?.cancel()
+            let next = query.trimmingCharacters(in: .whitespaces)
+            debounce = Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                needle = next
+            }
+        }
     }
 
     @ViewBuilder private var context: some View {
@@ -130,7 +140,6 @@ struct FindSheet: View {
     }
 
     private func highlighted(_ line: String) -> Text {
-        let needle = query.trimmingCharacters(in: .whitespaces)
         var attributed = AttributedString(line)
         attributed.foregroundColor = theme.text2
         guard needle.count >= 2 else { return Text(attributed) }

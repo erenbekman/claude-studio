@@ -29,6 +29,7 @@ struct SessionDetails: Equatable {
     var mode: Mode?
     var todos: [Todo]?
     var plan: String?
+    var transcriptStamp: String?
 
     var contextLimit: Int {
         let id = modelID ?? ""
@@ -54,13 +55,21 @@ struct SessionDetails: Equatable {
     }
 
     static func read(projectPath: String, sessionID: String?, tmux: String?,
-                     previousMode: Mode?) -> SessionDetails {
+                     previous: SessionDetails?) -> SessionDetails {
         var details = SessionDetails()
-        if let sessionID, !sessionID.isEmpty {
-            transcriptTail(projectPath: projectPath, sessionID: sessionID, into: &details)
+        if let sessionID, !sessionID.isEmpty,
+           let url = transcriptURL(projectPath: projectPath, sessionID: sessionID) {
+            let stamp = self.stamp(of: url)
+            if let previous, stamp != nil, previous.transcriptStamp == stamp {
+                details = previous
+                details.mode = nil
+            } else {
+                transcriptTail(url, into: &details)
+                details.transcriptStamp = stamp
+            }
         }
         if let tmux, let lines = Tmux.capturePanes([tmux])[tmux] {
-            details.mode = mode(in: lines, previous: previousMode)
+            details.mode = mode(in: lines, previous: previous?.mode)
         }
         return details
     }
@@ -88,63 +97,73 @@ struct SessionDetails: Equatable {
         return version.isEmpty ? title : "\(title) \(version)"
     }
 
-    private static func transcriptTail(projectPath: String, sessionID: String,
-                                       into details: inout SessionDetails) {
-        for directory in ClaudeTranscripts.directories(for: projectPath) {
-            let url = directory.appendingPathComponent("\(sessionID).jsonl")
-            guard let handle = try? FileHandle(forReadingFrom: url) else { continue }
-            defer { try? handle.close() }
-            let size = (try? handle.seekToEnd()) ?? 0
-            let window: UInt64 = 2 * 1024 * 1024
-            try? handle.seek(toOffset: size > window ? size - window : 0)
-            guard let data = try? handle.readToEnd(),
-                  let text = String(data: data, encoding: .utf8) else { continue }
+    private static func transcriptURL(projectPath: String, sessionID: String) -> URL? {
+        ClaudeTranscripts.directories(for: projectPath)
+            .map { $0.appendingPathComponent("\(sessionID).jsonl") }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
+    }
 
-            var foundUsage = false
-            var foundTasks = false
-            for line in text.split(separator: "\n").reversed() {
-                if foundUsage && foundTasks { break }
-                let usageLine = !foundUsage && line.contains("\"usage\"")
-                let taskLine = !foundTasks
-                    && (line.contains("\"name\":\"TodoWrite\"") || line.contains("\"name\":\"ExitPlanMode\""))
-                guard usageLine || taskLine,
-                      let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
-                      object["type"] as? String == "assistant",
-                      object["isSidechain"] as? Bool != true,
-                      let message = object["message"] as? [String: Any]
-                else { continue }
+    private static func stamp(of url: URL) -> String? {
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
+              let size = values.fileSize, let modified = values.contentModificationDate
+        else { return nil }
+        return "\(size)-\(modified.timeIntervalSince1970)"
+    }
 
-                if usageLine, let model = message["model"] as? String, !model.hasPrefix("<"),
-                   let usage = message["usage"] as? [String: Any] {
-                    details.modelID = model
-                    details.model = displayName(ofModel: model)
-                    details.contextTokens = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"]
-                        .reduce(0) { $0 + ((usage[$1] as? Int) ?? 0) }
-                    foundUsage = true
-                }
-                if taskLine, let content = message["content"] as? [[String: Any]] {
-                    for item in content.reversed() where item["type"] as? String == "tool_use" {
-                        let input = item["input"] as? [String: Any]
-                        if item["name"] as? String == "TodoWrite",
-                           let todos = input?["todos"] as? [[String: Any]] {
-                            details.todos = todos.enumerated().compactMap { index, todo in
-                                guard let text = todo["content"] as? String else { return nil }
-                                let status = Todo.Status(rawValue: todo["status"] as? String ?? "") ?? .pending
-                                return Todo(id: index, content: text, status: status)
-                            }
-                            foundTasks = true
-                            break
+    private static func transcriptTail(_ url: URL, into details: inout SessionDetails) {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        let window: UInt64 = 2 * 1024 * 1024
+        try? handle.seek(toOffset: size > window ? size - window : 0)
+        guard let data = try? handle.readToEnd() else { return }
+        parseTail(String(decoding: data, as: UTF8.self), into: &details)
+    }
+
+    static func parseTail(_ text: String, into details: inout SessionDetails) {
+        var foundUsage = false
+        var foundTasks = false
+        for line in text.split(separator: "\n").reversed() {
+            if foundUsage && foundTasks { break }
+            let usageLine = !foundUsage && line.contains("\"usage\"")
+            let taskLine = !foundTasks
+                && (line.contains("\"name\":\"TodoWrite\"") || line.contains("\"name\":\"ExitPlanMode\""))
+            guard usageLine || taskLine,
+                  let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                  object["type"] as? String == "assistant",
+                  object["isSidechain"] as? Bool != true,
+                  let message = object["message"] as? [String: Any]
+            else { continue }
+
+            if usageLine, let model = message["model"] as? String, !model.hasPrefix("<"),
+               let usage = message["usage"] as? [String: Any] {
+                details.modelID = model
+                details.model = displayName(ofModel: model)
+                details.contextTokens = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"]
+                    .reduce(0) { $0 + ((usage[$1] as? Int) ?? 0) }
+                foundUsage = true
+            }
+            if taskLine, let content = message["content"] as? [[String: Any]] {
+                for item in content.reversed() where item["type"] as? String == "tool_use" {
+                    let input = item["input"] as? [String: Any]
+                    if item["name"] as? String == "TodoWrite",
+                       let todos = input?["todos"] as? [[String: Any]] {
+                        details.todos = todos.enumerated().compactMap { index, todo in
+                            guard let text = todo["content"] as? String else { return nil }
+                            let status = Todo.Status(rawValue: todo["status"] as? String ?? "") ?? .pending
+                            return Todo(id: index, content: text, status: status)
                         }
-                        if item["name"] as? String == "ExitPlanMode",
-                           let plan = (input?["plan"] as? String)?.nilIfEmpty {
-                            details.plan = plan
-                            foundTasks = true
-                            break
-                        }
+                        foundTasks = true
+                        break
+                    }
+                    if item["name"] as? String == "ExitPlanMode",
+                       let plan = (input?["plan"] as? String)?.nilIfEmpty {
+                        details.plan = plan
+                        foundTasks = true
+                        break
                     }
                 }
             }
-            return
         }
     }
 }

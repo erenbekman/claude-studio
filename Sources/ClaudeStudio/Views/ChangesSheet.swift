@@ -22,13 +22,6 @@ struct ChangesSheet: View {
         var text: String
     }
 
-    private struct Line {
-        var text: String
-        var old: Int?
-        var new: Int?
-        var commentable: Bool
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -125,7 +118,7 @@ struct ChangesSheet: View {
 
     private var patch: some View {
         let file = files.first { $0.path == selected }
-        let lines = numbered(file?.patch ?? [], untracked: file?.untracked ?? false)
+        let lines = GitChanges.numbered(file?.patch ?? [], untracked: file?.untracked ?? false)
         return ScrollView([.vertical, .horizontal]) {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
@@ -144,7 +137,7 @@ struct ChangesSheet: View {
         .id(selected)
     }
 
-    private func patchLine(_ line: Line, index: Int, file: String) -> some View {
+    private func patchLine(_ line: GitChanges.Line, index: Int, file: String) -> some View {
         HStack(spacing: 0) {
             Text(line.old.map(String.init) ?? "")
                 .frame(width: 38, alignment: .trailing)
@@ -175,7 +168,7 @@ struct ChangesSheet: View {
         .help(line.commentable ? "Click to comment on this line" : "")
     }
 
-    private func commentEditor(_ line: Line, file: String) -> some View {
+    private func commentEditor(_ line: GitChanges.Line, file: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             TextField("Comment for Claude on \((file as NSString).lastPathComponent):\(label(line))…",
                       text: $draft, axis: .vertical)
@@ -250,7 +243,7 @@ struct ChangesSheet: View {
         return model.tabs.first { $0.kind == .session }
     }
 
-    private func addComment(_ line: Line, file: String) {
+    private func addComment(_ line: GitChanges.Line, file: String) {
         guard let text = draft.nilIfEmpty else { return }
         comments.append(Comment(file: file, line: label(line),
                                 code: String(line.text.dropFirst()).trimmingCharacters(in: .whitespaces),
@@ -275,45 +268,10 @@ struct ChangesSheet: View {
         onDismiss()
     }
 
-    private func label(_ line: Line) -> String {
+    private func label(_ line: GitChanges.Line) -> String {
         if let new = line.new { return "\(new)" }
         if let old = line.old { return "\(old) (removed)" }
         return ""
-    }
-
-    private func numbered(_ patch: [String], untracked: Bool) -> [Line] {
-        var old = 0, new = 0
-        var out: [Line] = []
-        if untracked {
-            for (index, text) in patch.enumerated() {
-                let content = text.hasPrefix("+")
-                out.append(Line(text: text, old: nil, new: content ? index + 1 : nil, commentable: content))
-            }
-            return out
-        }
-        for text in patch {
-            if text.hasPrefix("@@") {
-                let parts = text.split(separator: " ")
-                if parts.count > 2 {
-                    old = Int(parts[1].dropFirst().split(separator: ",").first ?? "") ?? 0
-                    new = Int(parts[2].dropFirst().split(separator: ",").first ?? "") ?? 0
-                }
-                out.append(Line(text: text, old: nil, new: nil, commentable: false))
-            } else if text.hasPrefix("+") {
-                out.append(Line(text: text, old: nil, new: new, commentable: true))
-                new += 1
-            } else if text.hasPrefix("-") {
-                out.append(Line(text: text, old: old, new: nil, commentable: true))
-                old += 1
-            } else if text.hasPrefix(" ") {
-                out.append(Line(text: text, old: old, new: new, commentable: true))
-                old += 1
-                new += 1
-            } else {
-                out.append(Line(text: text, old: nil, new: nil, commentable: false))
-            }
-        }
-        return out
     }
 
     private func counts(added: Int, removed: Int) -> some View {
