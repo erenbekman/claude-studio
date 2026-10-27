@@ -14,9 +14,6 @@ struct StudioView: View {
             TopBar(model: model, onClose: onClose, onAppearance: { model.themeSheetOpen = true })
 
             HStack(spacing: 0) {
-                ActivityRail(model: model)
-                Rectangle().fill(theme.separator).frame(width: 1)
-
                 Sidebar(model: model)
                     .frame(width: model.sidebarWidth)
 
@@ -36,6 +33,12 @@ struct StudioView: View {
         .overlay {
             if model.paletteOpen { CommandPalette(model: model) }
         }
+        .sheet(isPresented: $model.conversationsOpen) {
+            ConversationsSheet(model: model) { model.conversationsOpen = false }
+        }
+        .sheet(isPresented: $model.changesOpen) {
+            ChangesSheet(path: model.project.path) { model.changesOpen = false }
+        }
         .sheet(isPresented: $model.themeSheetOpen) {
             ThemeEditor(model: model, onDismiss: { model.themeSheetOpen = false })
         }
@@ -52,7 +55,7 @@ struct StudioView: View {
     /// The sidebar width is dragged to size and persisted in `.cs/settings.json`.
     private var sidebarHandle: some View {
         Rectangle()
-            .fill(draggingSidebar ? model.theme.accent : theme.separator)
+            .fill(draggingSidebar ? model.theme.accent : theme.separator.opacity(0.5))
             .frame(width: 1)
             .overlay(Color.clear.frame(width: 7).contentShape(Rectangle()))
             .onHover { inside in
@@ -166,7 +169,6 @@ private struct TopBar: View {
         // Empty header space zooms the window on a double-click, like a title bar;
         // the controls opt out through `headerControl()` (see HeaderDoubleClick).
         .background(theme.chrome)
-        .overlay(alignment: .bottom) { Rectangle().fill(theme.separator).frame(height: 1) }
     }
 }
 
@@ -240,69 +242,6 @@ private struct ProjectMenu: View {
     }
 }
 
-// MARK: - Activity rail
-
-private struct ActivityRail: View {
-    @ObservedObject var model: StudioModel
-    @ObservedObject private var settings = AppSettings.shared
-    @State private var dragging: StudioModel.Pane?
-    @Environment(\.studioTheme) private var theme
-
-    var body: some View {
-        VStack(spacing: 4) {
-            ForEach(StudioModel.orderedPanes) { pane in
-                button(pane)
-                    // Drag to reorder; the context menu does the same without a drag.
-                    .onDrag {
-                        dragging = pane
-                        return NSItemProvider(object: pane.rawValue as NSString)
-                    }
-                    .onDrop(of: [.text], isTargeted: nil) { _ in
-                        guard let source = dragging, source != pane else { return false }
-                        StudioModel.movePane(source, before: pane)
-                        dragging = nil
-                        return true
-                    }
-                    .contextMenu {
-                        Button("Move up") { StudioModel.movePane(pane, by: -1) }
-                        Button("Move down") { StudioModel.movePane(pane, by: 1) }
-                        Divider()
-                        Button("Reset order") { StudioModel.resetPaneOrder() }
-                    }
-            }
-            Spacer()
-        }
-        .padding(.vertical, 8)
-        .frame(width: 46)
-        .frame(maxHeight: .infinity)
-        .background(theme.chrome)
-    }
-
-    private func button(_ pane: StudioModel.Pane) -> some View {
-        let selected = model.pane == pane
-        return Button { model.pane = pane } label: {
-            Image(systemName: pane.icon)
-                .font(.system(size: 16, weight: .light))
-                .foregroundStyle(selected ? theme.text : theme.text3)
-                .frame(width: 46, height: 40)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(selected ? theme.accent : .clear)
-                        .frame(width: 2)
-                }
-                .overlay(alignment: .topTrailing) {
-                    if pane == .sessions && model.attentionCount > 0 {
-                        StatusDot(color: Theme.waiting, size: 5)
-                            .padding(.top, 9).padding(.trailing, 9)
-                    }
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(pane.help)
-    }
-}
-
 // MARK: - Tab bar
 
 private struct TabBar: View {
@@ -317,7 +256,7 @@ private struct TabBar: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
+            HStack(alignment: .bottom, spacing: 2) {
                 ForEach(model.tabs) { tab in
                     item(tab)
                         .onDrag {
@@ -342,10 +281,11 @@ private struct TabBar: View {
                         return true
                     }
             }
+            .padding(.horizontal, 6)
+            .padding(.top, 4)
         }
         .frame(height: 34)
         .background(theme.chrome)
-        .overlay(alignment: .bottom) { Rectangle().fill(theme.separator).frame(height: 1) }
     }
 
     private func item(_ tab: StudioTab) -> some View {
@@ -385,12 +325,11 @@ private struct TabBar: View {
         }
         .padding(.leading, 12)
         .padding(.trailing, 7)
-        .frame(height: 34)
-        .background(selected ? theme.surface : Color.clear)
-        .overlay(alignment: .top) {
-            Rectangle().fill(selected ? theme.accent : .clear).frame(height: 2)
-        }
-        .overlay(alignment: .trailing) { Rectangle().fill(theme.separator).frame(width: 1) }
+        .frame(height: 30)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: 7, topTrailingRadius: 7, style: .continuous)
+                .fill(selected ? theme.surface : Color.clear)
+        )
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { beginRename(tab) }
         .onTapGesture { model.activeTabID = tab.id }
@@ -500,7 +439,6 @@ private struct StatusBar: View {
         .padding(.horizontal, 12)
         .frame(height: 26)
         .background(theme.chrome)
-        .overlay(alignment: .top) { Rectangle().fill(theme.separator).frame(height: 1) }
     }
 
     private var planUsage: some View {

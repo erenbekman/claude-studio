@@ -16,7 +16,6 @@ struct Sidebar: View {
     @State private var mcpAddMenu = false
     @State private var scheduleSheet: Schedule?
     @State private var sessionMenu = false
-    @State private var transcriptMenu = false
     @State private var maker: MakerRequest?
     @State private var sessionManager = false
     @State private var renaming: String?
@@ -26,6 +25,7 @@ struct Sidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            navigation
             header
 
             ScrollView {
@@ -101,7 +101,9 @@ struct Sidebar: View {
 
     private var header: some View {
         HStack(spacing: 2) {
-            SectionLabel(text: model.pane.title)
+            Text(model.pane.label)
+                .font(Theme.ui(12.5, .medium))
+                .foregroundStyle(theme.text2)
             Spacer()
             if model.pane == .sessions {
                 IconButton(icon: "list.bullet.rectangle", help: "Session manager") {
@@ -109,10 +111,7 @@ struct Sidebar: View {
                 }
                 IconButton(icon: "clock.arrow.circlepath",
                            help: "Claude conversations — search, read, resume") {
-                    transcriptMenu = true
-                }
-                .sheet(isPresented: $transcriptMenu) {
-                    ConversationsSheet(model: model) { transcriptMenu = false }
+                    model.conversationsOpen = true
                 }
                 IconButton(icon: "plus", help: "New session / previous sessions") {
                     sessionMenu = true
@@ -176,10 +175,65 @@ struct Sidebar: View {
                 IconButton(icon: "plus", help: addHelp, action: add)
             }
         }
-        .padding(.leading, 12)
+        .padding(.leading, 14)
         .padding(.trailing, 6)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+    }
+
+    private var navigation: some View {
+        VStack(spacing: 1) {
+            ForEach(StudioModel.orderedPanes) { pane in
+                Button { model.pane = pane } label: {
+                    HoverRow(selected: model.pane == pane,
+                             padding: EdgeInsets(top: 5, leading: 8, bottom: 5, trailing: 8),
+                             radius: 6) {
+                        HStack(spacing: 9) {
+                            Image(systemName: pane.icon)
+                                .font(.system(size: 12))
+                                .foregroundStyle(model.pane == pane ? theme.text : theme.text3)
+                                .frame(width: 16)
+                            Text(pane.label)
+                                .font(Theme.ui(12.5))
+                                .foregroundStyle(model.pane == pane ? theme.text : theme.text2)
+                            Spacer(minLength: 4)
+                            navigationBadge(pane)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .help(pane.help)
+                .contextMenu {
+                    Button("Move up") { StudioModel.movePane(pane, by: -1) }
+                    Button("Move down") { StudioModel.movePane(pane, by: 1) }
+                    Divider()
+                    Button("Reset order") { StudioModel.resetPaneOrder() }
+                }
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder private func navigationBadge(_ pane: StudioModel.Pane) -> some View {
+        switch pane {
+        case .sessions where model.attentionCount > 0:
+            HStack(spacing: 4) {
+                StatusDot(color: Theme.waiting, size: 5)
+                Text("\(model.attentionCount)")
+            }
+            .font(Theme.mono(10.5))
+            .foregroundStyle(theme.text3)
+        case .services where model.runningServiceCount > 0:
+            HStack(spacing: 4) {
+                StatusDot(color: Theme.running, size: 5)
+                Text("\(model.runningServiceCount)")
+            }
+            .font(Theme.mono(10.5))
+            .foregroundStyle(theme.text3)
+        default:
+            EmptyView()
+        }
     }
 
     private var footer: some View {
@@ -193,8 +247,7 @@ struct Sidebar: View {
         }
         .padding(.leading, 6)
         .padding(.trailing, 12)
-        .padding(.vertical, 5)
-        .overlay(alignment: .top) { Rectangle().fill(theme.separator).frame(height: 1) }
+        .padding(.vertical, 6)
     }
 
     private var footerText: String {
@@ -333,17 +386,10 @@ struct Sidebar: View {
         } else if !open.isEmpty {
             VStack(spacing: 1) {
                 HStack {
-                    Text("\(open.count) \(open.count == 1 ? "session" : "sessions")")
-                        .font(Theme.ui(11))
-                        .foregroundStyle(theme.text3)
+                    SectionLabel(text: "open \(open.count)", icon: "circle.dotted")
                     Spacer()
-                    if model.attentionCount > 0 {
-                        Text("\(model.attentionCount) unread")
-                            .font(Theme.ui(10.5))
-                            .foregroundStyle(Theme.waiting)
-                    }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 6)
                 .padding(.top, 2)
                 .padding(.bottom, 3)
                 ForEach(open) { record in
@@ -353,15 +399,13 @@ struct Sidebar: View {
             .padding(5)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(theme.hover)
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(theme.separator.opacity(0.6)))
+                    .fill(theme.hover.opacity(0.6))
             )
         }
 
         let saved = model.savedClosedSessions.filter(matches)
         if !saved.isEmpty {
-            SectionLabel(text: "saved")
+            SectionLabel(text: "pinned \(saved.count)", icon: "pin")
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.top, 14)
@@ -373,7 +417,7 @@ struct Sidebar: View {
 
         let past = model.pastSessions.filter(matches).prefix(trimmedFilter.isEmpty ? 8 : 40)
         if !past.isEmpty {
-            SectionLabel(text: "previous sessions")
+            SectionLabel(text: "recent", icon: "clock")
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.top, 14)
@@ -412,7 +456,7 @@ struct Sidebar: View {
                                     .foregroundStyle(theme.accent)
                             }
                             Text(record.name)
-                                .font(Theme.ui(12.5, state.needsAttention ? .semibold : .regular))
+                                .font(Theme.ui(12.5))
                                 .foregroundStyle(theme.text)
                                 .lineLimit(1)
                             Spacer(minLength: 4)
@@ -421,6 +465,10 @@ struct Sidebar: View {
                                 .foregroundStyle(theme.text3)
                                 .lineLimit(1)
                                 .fixedSize()
+                            if state.needsAttention {
+                                StatusDot(color: Theme.waiting, size: 6)
+                                    .padding(.leading, 2)
+                            }
                         }
                         Text(meta(for: record))
                             .font(Theme.ui(11))
@@ -458,12 +506,10 @@ struct Sidebar: View {
             Image(systemName: "bell.fill")
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.waiting)
-        case .done:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.running)
-        case .seen, .idle:
-            StatusDot(color: theme.idle)
+        case .done, .seen, .idle:
+            Circle()
+                .strokeBorder(theme.text3, style: StrokeStyle(lineWidth: 1, dash: state == .idle ? [1.5, 1.5] : []))
+                .frame(width: 9, height: 9)
         }
     }
 
@@ -502,7 +548,8 @@ struct Sidebar: View {
         } else {
             HoverRow(padding: EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 6)) {
                 HStack(spacing: 8) {
-                    StatusDot(color: theme.idle)
+                    statusGlyph(.idle)
+                        .frame(width: 14)
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 4) {
                             if record.saved {

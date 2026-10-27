@@ -59,21 +59,53 @@ private struct EmptyStudio: View {
     @ObservedObject var model: StudioModel
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 30, weight: .ultraLight))
-                .foregroundStyle(theme.text3)
-            Text("Pick a session, skill, schedule, service or terminal on the left")
-                .font(Theme.ui(12.5))
-                .foregroundStyle(theme.text3)
-            HStack(spacing: 8) {
-                SmallButton(title: "Claude session", icon: "plus", prominent: true) {
-                    model.newSession()
-                }
-                SmallButton(title: "Terminal", icon: "plus") { model.newTerminal() }
+        VStack(alignment: .leading, spacing: 2) {
+            option("plus.bubble", "New session", "Start Claude in \(model.project.name)") {
+                model.newSession()
+            }
+            option("clock.arrow.circlepath", "Conversations", "Search, read and resume past transcripts") {
+                model.conversationsOpen = true
+            }
+            option("plusminus", "Changes", changesDetail) {
+                model.changesOpen = true
+            }
+            option("terminal", "Terminal", "Open a shell that belongs to this project") {
+                model.newTerminal()
+            }
+            option("command", "Command palette", "Every session, skill and service by name · ⌘P") {
+                model.paletteOpen = true
             }
         }
+        .frame(width: 340)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var changesDetail: String {
+        guard let changes = model.changes, changes.files > 0 else { return "No uncommitted edits" }
+        return "\(changes.files) \(changes.files == 1 ? "file" : "files") · +\(changes.added) −\(changes.removed)"
+    }
+
+    private func option(_ icon: String, _ title: String, _ detail: String,
+                        action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HoverRow(padding: EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10), radius: 8) {
+                HStack(alignment: .top, spacing: 11) {
+                    Image(systemName: icon)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(theme.text3)
+                        .frame(width: 16, height: 16)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(Theme.ui(13))
+                            .foregroundStyle(theme.text)
+                        Text(detail)
+                            .font(Theme.ui(11.5))
+                            .foregroundStyle(theme.text3)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -85,7 +117,6 @@ private struct TerminalPane: View {
     let tab: StudioTab
     @State private var editingTitle = false
     @State private var draftTitle = ""
-    @State private var showingChanges = false
     @FocusState private var titleFocused: Bool
 
     var body: some View {
@@ -95,9 +126,6 @@ private struct TerminalPane: View {
                 linkNotice
             }
             TerminalHost(key: tab.terminalKey, engine: model.engine)
-        }
-        .sheet(isPresented: $showingChanges) {
-            ChangesSheet(path: model.project.path) { showingChanges = false }
         }
     }
 
@@ -199,7 +227,7 @@ private struct TerminalPane: View {
             }
         case .session:
             if let changes = model.changes, changes.files > 0 {
-                Button { showingChanges = true } label: {
+                Button { model.changesOpen = true } label: {
                     HStack(spacing: 5) {
                         Text("+\(changes.added)").foregroundStyle(Theme.running)
                         Text("−\(changes.removed)").foregroundStyle(Theme.danger)

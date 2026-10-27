@@ -269,6 +269,14 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   Instead each file is mapped, case-folded in place (ASCII, Latin-1, Ğ/Ş) and searched
   with `memmem`, files in parallel: about half a second. Turkish dotless ı and dotted
   İ are not folded — both sides must keep their length.
+- **Visual language**: grey does the work, colour only means something. Selection is
+  a neutral label-colour wash (not the accent, not macOS blue); the accent marks the
+  project, orange means "on you", green means running. Planes are separated by tone
+  and spacing, not lines: no rule under the top bar, tab bar or sidebar footer, tabs
+  are rounded and the active one is the content surface. Section headings are
+  sentence case with an icon (`SectionLabel(text:icon:)`), never uppercase. Unread is
+  a dot at the right edge of the row, not bold text. The panes are a menu at the top
+  of the sidebar (icon + name, right-click to reorder); there is no activity rail.
 - **Plan usage** (`PlanUsage`, the "Used" meter at the left of the status bar): read
   from `cachedUsageUtilization.utilization.limits` in `~/.claude.json`, the cache
   Claude Code itself refreshes. Only that key is read and only when the file's mtime

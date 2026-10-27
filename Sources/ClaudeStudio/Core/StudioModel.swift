@@ -24,6 +24,18 @@ final class StudioModel: ObservableObject {
             case .terminals: return "terminals"
             }
         }
+        var label: String {
+            switch self {
+            case .sessions:  return "Sessions"
+            case .skills:    return "Skills"
+            case .mcp:       return "MCP servers"
+            case .cron:      return "Scheduled"
+            case .services:  return "Services"
+            case .commands:  return "Commands"
+            case .scripts:   return "Scripts"
+            case .terminals: return "Terminals"
+            }
+        }
         var icon: String {
             switch self {
             case .sessions:  return "bubble.left.and.bubble.right"
@@ -111,6 +123,8 @@ final class StudioModel: ObservableObject {
     @Published var selectedRun: [String: String] = [:]
     /// ⌘P palette visibility.
     @Published var paletteOpen = false
+    @Published var conversationsOpen = false
+    @Published var changesOpen = false
     /// Appearance sheet visibility. On the model rather than in the view, so the
     /// command palette can open it too.
     @Published var themeSheetOpen = false

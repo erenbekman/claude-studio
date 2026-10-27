@@ -15,7 +15,7 @@ enum Theme {
     /// Sidebar, top bar and status bar.
     static let chrome      = Color(nsColor: .windowBackgroundColor)
     /// Selected row / active tab fill.
-    static let selection   = Color(nsColor: .selectedContentBackgroundColor).opacity(0.16)
+    static let selection   = Color(nsColor: .labelColor).opacity(0.09)
     static let hover       = Color(nsColor: .labelColor).opacity(0.06)
     static let separator   = Color(nsColor: .separatorColor)
     /// Card and input field background.
@@ -85,7 +85,7 @@ struct ThemePreset: Identifiable, Equatable, Sendable {
     static let all: [ThemePreset] = [
         claude,
         ThemePreset(id: "graphite", name: "Graphite", accentHex: "#E8A33D",
-                    bgHex: "#1C1C1C", fgHex: "#D9D9D9", ansi: [
+                    bgHex: "#141414", fgHex: "#D4D4D4", ansi: [
                         "#2A2A2A", "#F14C4C", "#23C483", "#E8A33D",
                         "#4FA1F0", "#C586C0", "#4EC9B0", "#CCCCCC",
                         "#6B6B6B", "#FF6B6B", "#3DDC97", "#F5C25B",
@@ -270,7 +270,7 @@ struct StudioTheme: Equatable {
     /// Selected row. Themed palettes tint it with the accent — that is the whole
     /// point of an accent — while the default keeps macOS's own selection color.
     var selection: Color {
-        isThemed ? accent.opacity(0.20) : Theme.selection
+        isThemed ? Color(nsColor: terminalFG).opacity(0.10) : Theme.selection
     }
 
     /// The "nothing is happening" dot. The status colors stay fixed — they are
@@ -347,12 +347,19 @@ extension NSColor {
 /// Sidebar section heading.
 struct SectionLabel: View {
     let text: String
+    var icon: String? = nil
     @Environment(\.studioTheme) private var studio
     var body: some View {
-        Text(text.uppercased())
-            .font(Theme.sectionLabel())
-            .tracking(0.6)
-            .foregroundStyle(studio.text3)
+        HStack(spacing: 6) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 10.5))
+                    .frame(width: 14)
+            }
+            Text(text.prefix(1).uppercased() + text.dropFirst())
+                .font(Theme.ui(11.5, .medium))
+        }
+        .foregroundStyle(studio.text3)
     }
 }
 
