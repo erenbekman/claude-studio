@@ -97,8 +97,13 @@ final class StudioModel: ObservableObject {
         didSet {
             guard activeTabID != oldValue else { return }
             SessionStates.shared.setVisibleTab(activeTabID, for: ObjectIdentifier(self))
+            refreshSessionHeader()
         }
     }
+    @Published private(set) var changes: GitChanges.Summary?
+    @Published private(set) var sessionDetails: [String: SessionDetails] = [:]
+    private var headerTimer: Timer?
+    private var headerRefreshing = false
     /// Session names currently alive in tmux.
     @Published var liveSessions: Set<String> = []
     @Published var sidebarWidth: CGFloat = 260
@@ -256,6 +261,11 @@ final class StudioModel: ObservableObject {
         }
         engine.refreshExternalStatuses(store.config.services)
 
+        headerTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
+            Task { @MainActor in self.refreshSessionHeader() }
+        }
+        refreshSessionHeader()
+
         for service in store.config.services where service.autoStart {
             engine.startService(service, project: project)
         }
@@ -266,6 +276,7 @@ final class StudioModel: ObservableObject {
     /// is their entire point.
     func stop() {
         refreshTimer?.invalidate()
+        headerTimer?.invalidate()
         runs.stopPolling()
         SessionStates.shared.releaseVisible(for: ObjectIdentifier(self))
         store.mutate {
@@ -1310,6 +1321,39 @@ final class StudioModel: ObservableObject {
     }
 
     var activeTab: StudioTab? { tabs.first { $0.id == activeTabID } }
+
+    func refreshSessionHeader() {
+        guard !headerRefreshing else { return }
+        headerRefreshing = true
+        let path = project.path
+        let tab = activeTab.flatMap { $0.kind == .session ? $0 : nil }
+        let key = tab?.terminalKey
+        let sid = key.flatMap { engine.claudeSIDs[$0] } ?? tab.flatMap { store.session(tmux: $0.ref)?.claudeSID }
+        let tmux = Tmux.isAvailable ? tab?.ref : nil
+        let previousMode = key.flatMap { sessionDetails[$0]?.mode }
+        Task.detached(priority: .utility) {
+            let summary = GitChanges.summary(at: path)
+            let details = key == nil ? nil
+                : SessionDetails.read(projectPath: path, sessionID: sid, tmux: tmux,
+                                      previousMode: previousMode)
+            await MainActor.run {
+                if self.changes != summary { self.changes = summary }
+                if let key, let details, self.sessionDetails[key] != details {
+                    self.sessionDetails[key] = details
+                }
+                self.headerRefreshing = false
+            }
+        }
+    }
+
+    func cycleMode(of tab: StudioTab) {
+        engine.send(key: tab.terminalKey, text: "\u{1B}[Z")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.refreshSessionHeader() }
+    }
+
+    func openModelPicker(in tab: StudioTab) {
+        engine.send(key: tab.terminalKey, text: "/model", enter: true)
+    }
 
     /// ⌘1…⌘9 — jumps to the nth tab if it exists.
     func selectTab(_ index: Int) {

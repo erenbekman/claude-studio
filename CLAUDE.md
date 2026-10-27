@@ -52,6 +52,8 @@ Sources/ClaudeStudio/
 │   ├── HookBridge.swift       # Claude Code hooks → session state
 │   ├── SessionStates.swift    # the app-wide reader: state files, pane titles, screens
 │   ├── PaneReader.swift       # what a session is waiting FOR, read off its screen
+│   ├── SessionDetails.swift   # session header: model + context (transcript), mode (screen)
+│   ├── GitChanges.swift       # uncommitted changes: header counts + the diff sheet
 │   ├── ClaudeTranscripts.swift# resume availability check
 │   ├── Settings.swift         # user preferences (sound, notifications, terminal)
 │   ├── Updater.swift          # GitHub release self-updater
@@ -59,6 +61,7 @@ Sources/ClaudeStudio/
 │   └── StudioModel.swift      # all state for one window
 └── Views/                 # Windows, RootView, WelcomeView, StudioView, Sidebar, Detail,
                            # Sheets, SettingsWindow, CommandPalette, Markdown, TerminalHost,
+                           # ChangesSheet,
                            # Island (the panel above every app, owned by no window)
 
 Sources/StudioBridge/       # second executable: the MCP server the app registers with
@@ -242,6 +245,20 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   a second time. `Tmux.capturePanes` reads every waiting session in ONE
   chained call, and only sessions `list-panes` just confirmed: a `capture-pane` on
   a session that has gone takes the whole batch's output with it.
+- **Session header** (`SessionDetails`, `GitChanges`, polled every 2.5 s for the
+  visible session tab only): the MODE is read off the TUI footer ("accept edits on",
+  "plan mode on", "auto mode on", "bypass permissions on"; none of them is the default
+  mode) — but while a numbered prompt covers the footer the previous mode is kept, or
+  the chip would flip to "Default" under every question. MODEL and CONTEXT come from
+  the transcript's tail (last 512 KB): the newest non-sidechain assistant entry,
+  context = `input_tokens` + both cache counts. It is shown as tokens, never a
+  percentage — the window size is not in the transcript and guessing it is worse
+  than not saying. The mode chip sends Shift+Tab (`ESC [ Z`); the model chip types
+  `/model` + Enter and is DISABLED while the session is working, because the text
+  would land in the middle of a turn. Changes are `git diff HEAD --relative
+  --no-renames` plus untracked files: `--relative` so tracked and untracked paths
+  agree when the project is a subdirectory of its repository, `--no-renames` because
+  numstat writes a rename as `old => new` and it would match no patch.
 - **What gets announced**: a QUESTION (`waiting`) always. A finished turn (`done`)
   only when the turn ran at least as long as the user's threshold:
   `notify.finishedAfterMinutes` on the Mac, `preferences.finishedAfter` per device on

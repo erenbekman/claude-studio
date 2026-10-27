@@ -85,6 +85,7 @@ private struct TerminalPane: View {
     let tab: StudioTab
     @State private var editingTitle = false
     @State private var draftTitle = ""
+    @State private var showingChanges = false
     @FocusState private var titleFocused: Bool
 
     var body: some View {
@@ -94,6 +95,9 @@ private struct TerminalPane: View {
                 linkNotice
             }
             TerminalHost(key: tab.terminalKey, engine: model.engine)
+        }
+        .sheet(isPresented: $showingChanges) {
+            ChangesSheet(path: model.project.path) { showingChanges = false }
         }
     }
 
@@ -164,6 +168,8 @@ private struct TerminalPane: View {
                 .background(Capsule().fill(theme.field))
             }
 
+            if tab.kind == .session { sessionChips }
+
             Spacer(minLength: 8)
 
             Text(meta)
@@ -192,6 +198,20 @@ private struct TerminalPane: View {
                 }
             }
         case .session:
+            if let changes = model.changes, changes.files > 0 {
+                Button { showingChanges = true } label: {
+                    HStack(spacing: 5) {
+                        Text("+\(changes.added)").foregroundStyle(Theme.running)
+                        Text("−\(changes.removed)").foregroundStyle(Theme.danger)
+                    }
+                    .font(Theme.mono(11))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(theme.field))
+                }
+                .buttonStyle(.plain)
+                .help("\(changes.files) changed \(changes.files == 1 ? "file" : "files") — show the diff")
+            }
             IconButton(icon: "pencil", help: "Rename", action: beginRename)
             IconButton(icon: "xmark.circle", help: "Close session") {
                 model.closeTab(id: tab.id)
@@ -218,6 +238,55 @@ private struct TerminalPane: View {
     }
 
     private var renameable: Bool { tab.kind == .session || tab.kind == .terminal }
+
+    @ViewBuilder private var sessionChips: some View {
+        let details = model.sessionDetails[tab.terminalKey]
+        let working = model.engine.attention[tab.terminalKey] == .working
+        if let mode = details?.mode {
+            chip(mode.label, icon: modeIcon(mode),
+                 tint: mode == .bypass ? Theme.danger : nil,
+                 help: "Switch permission mode (⇧⇥)") { model.cycleMode(of: tab) }
+        }
+        if let name = details?.model {
+            chip(name, icon: "cpu",
+                 help: working ? "Change the model once Claude is done" : "Change model (/model)") {
+                model.openModelPicker(in: tab)
+            }
+            .disabled(working)
+        }
+        if let context = details?.contextLabel {
+            Text(context)
+                .font(Theme.ui(11))
+                .foregroundStyle(theme.text3)
+                .lineLimit(1)
+        }
+    }
+
+    private func chip(_ title: String, icon: String, tint: Color? = nil, help: String,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 9.5))
+                Text(title).font(Theme.ui(11)).lineLimit(1)
+            }
+            .foregroundStyle(tint ?? theme.text2)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(theme.field))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    private func modeIcon(_ mode: SessionDetails.Mode) -> String {
+        switch mode {
+        case .standard:    return "hand.raised"
+        case .acceptEdits: return "pencil.line"
+        case .plan:        return "list.bullet.clipboard"
+        case .auto:        return "wand.and.stars"
+        case .bypass:      return "exclamationmark.shield"
+        }
+    }
 
     private func beginRename() {
         guard renameable else { return }
