@@ -310,6 +310,17 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   one — WITHOUT pressing Enter, so it can be read before it goes.
 - **Find (⌘F)**: searches `tmux capture-pane` history (10,000 lines), not SwiftTerm's
   buffer — tmux redraws the screen, so the terminal's own scrollback is nearly empty.
+- **Copy needs `allowMouseReporting = false`**: with it on (SwiftTerm's default)
+  every linefeed clears the selection (`linefeed` → `selectNone`), and Claude and
+  tmux redraw constantly — the selection vanished before ⌘C, whose menu item is
+  enabled only while a selection is active, so ⌘C just beeped. Nothing is lost by
+  turning it off: tmux runs with `mouse off`, so no program inside ever receives
+  mouse events, and the wheel is routed to copy-mode by the app.
+- **Terminal appearance** (Settings → Terminal): font family (any fixed-pitch
+  family installed), size, line spacing (SwiftTerm `lineSpacing`, 1.0–1.6), cursor
+  shape and blink (`setCursorStyle`; a program can still override it), bold as
+  bright, and SwiftTerm's Metal renderer (off by default). Every change is applied
+  to all open terminals through `AppSettings.terminalAppearanceChanged`.
 - **Paste (⌘V)**: file URLs on the clipboard are typed as escaped paths; image data
   with no text is written to `dropped/` and typed as its path, same as a drop.
 - **Plan usage** (`PlanUsage`, the "Used" meter at the left of the status bar): read

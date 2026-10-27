@@ -201,23 +201,95 @@ struct SettingsView: View {
     }
 
     private var terminal: some View {
-        VStack(spacing: 0) {
-            row("Font size",
-                note: "Terminals opened from now on use this size.") {
-                HStack(spacing: 8) {
-                    Text(String(format: "%.1f", settings.terminalFontSize))
-                        .font(Theme.mono(12))
-                        .frame(width: 34, alignment: .trailing)
-                    Stepper("", value: $settings.terminalFontSize, in: 9...20, step: 0.5)
-                        .labelsHidden()
+        VStack(alignment: .leading, spacing: 18) {
+            terminalPreview
+
+            VStack(spacing: 0) {
+                row("Font", note: "Any monospaced font installed on this Mac.") {
+                    Picker("", selection: appearance($settings.terminalFontFamily)) {
+                        Text("SF Mono (system)").tag("")
+                        Divider()
+                        ForEach(AppSettings.monospacedFamilies, id: \.self) { family in
+                            Text(family).tag(family)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 200)
+                }
+                row("Size", note: "Applies to every open terminal right away.") {
+                    HStack(spacing: 8) {
+                        Text(String(format: "%.1f", settings.terminalFontSize))
+                            .font(Theme.mono(12))
+                            .frame(width: 34, alignment: .trailing)
+                        Stepper("", value: appearance($settings.terminalFontSize), in: 9...24, step: 0.5)
+                            .labelsHidden()
+                    }
+                }
+                row("Line spacing", note: "A little air between lines makes long output easier to read.", last: true) {
+                    HStack(spacing: 8) {
+                        Slider(value: appearance($settings.terminalLineSpacing), in: 1.0...1.6, step: 0.05)
+                            .frame(width: 140)
+                        Text(String(format: "%.2f×", settings.terminalLineSpacing))
+                            .font(Theme.mono(12))
+                            .frame(width: 44, alignment: .trailing)
+                    }
                 }
             }
+            .background(card)
 
-            infoRow("Multi-line input",
-                    note: "Press Shift+Enter or Option+Enter for a new line in Claude Code. The mapping is built into the app; `/terminal-setup` is not needed.",
-                    last: true)
+            VStack(spacing: 0) {
+                row("Cursor", note: "Claude Code draws its own; this is what shells and other programs show.") {
+                    Picker("", selection: appearance($settings.terminalCursor)) {
+                        ForEach(AppSettings.TerminalCursor.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 200)
+                }
+                toggleRow("Blinking cursor", note: "A program can still ask for a steady one.",
+                          isOn: appearance($settings.terminalCursorBlink))
+                toggleRow("Bold text in bright colors",
+                          note: "The classic terminal convention. Off keeps bold text in its own color.",
+                          isOn: appearance($settings.terminalBoldBright))
+                toggleRow("Draw with the GPU (experimental)",
+                          note: "SwiftTerm's Metal renderer: smoother scrolling through long output. Turn it off if anything looks wrong.",
+                          isOn: appearance($settings.terminalGPU), last: true)
+            }
+            .background(card)
+
+            VStack(spacing: 0) {
+                infoRow("Copying",
+                        note: "Select with the mouse and press ⌘C. The selection stays put while Claude keeps writing.")
+                infoRow("Multi-line input",
+                        note: "Press Shift+Enter or Option+Enter for a new line in Claude Code. The mapping is built into the app; `/terminal-setup` is not needed.",
+                        last: true)
+            }
+            .background(card)
         }
-        .background(card)
+    }
+
+    private var terminalPreview: some View {
+        let font = Font(settings.terminalFont as CTFont)
+        return VStack(alignment: .leading, spacing: 0) {
+            Group {
+                Text("~/project ").foregroundStyle(Theme.text3) + Text("❯ ").foregroundStyle(Theme.running)
+                    + Text("claude").foregroundStyle(Theme.text)
+                Text("✳ Reading Sources/App.swift (128 lines)").foregroundStyle(Theme.accent)
+                Text("  0O 1lI {}[]() => != == -> ").foregroundStyle(Theme.text2)
+                Text("Bold and normal ").bold().foregroundStyle(Theme.text) + Text("side by side").foregroundStyle(Theme.text2)
+            }
+            .font(font)
+            .lineSpacing(CGFloat(settings.terminalFontSize) * CGFloat(settings.terminalLineSpacing - 1))
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: Theme.nsTermBG)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.separator.opacity(0.5)))
+    }
+
+    private func appearance<Value>(_ binding: Binding<Value>) -> Binding<Value> {
+        Binding(get: { binding.wrappedValue },
+                set: { binding.wrappedValue = $0; settings.terminalAppearanceDidChange() })
     }
 
     private var sessions: some View {

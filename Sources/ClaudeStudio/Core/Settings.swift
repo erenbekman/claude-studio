@@ -23,6 +23,39 @@ final class AppSettings: ObservableObject {
     @AppStorage("notify.badge")        var badgeEnabled = true
     /// Terminal font size.
     @AppStorage("terminal.fontSize")   var terminalFontSize = 12.5
+    @AppStorage("terminal.fontFamily") var terminalFontFamily = ""
+    @AppStorage("terminal.lineSpacing") var terminalLineSpacing = 1.0
+    @AppStorage("terminal.cursor")     var terminalCursor = TerminalCursor.block.rawValue
+    @AppStorage("terminal.cursorBlink") var terminalCursorBlink = true
+    @AppStorage("terminal.boldBright") var terminalBoldBright = true
+    @AppStorage("terminal.gpu")        var terminalGPU = false
+
+    enum TerminalCursor: String, CaseIterable, Identifiable {
+        case block, bar, underline
+        var id: String { rawValue }
+        var label: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
+    }
+
+    static let terminalAppearanceChanged = Notification.Name("terminalAppearanceChanged")
+
+    static let monospacedFamilies: [String] = NSFontManager.shared.availableFontFamilies.filter { family in
+        guard let font = NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: 12) else { return false }
+        return font.isFixedPitch
+            || font.fontDescriptor.symbolicTraits.contains(.monoSpace)
+    }.sorted()
+
+    var terminalFont: NSFont {
+        let size = CGFloat(terminalFontSize)
+        if !terminalFontFamily.isEmpty,
+           let font = NSFontManager.shared.font(withFamily: terminalFontFamily, traits: [], weight: 5, size: size) {
+            return font
+        }
+        return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+
+    func terminalAppearanceDidChange() {
+        NotificationCenter.default.post(name: Self.terminalAppearanceChanged, object: nil)
+    }
     /// Reattach to the most recent session when a project opens.
     @AppStorage("session.autoAttach")  var autoAttachLastSession = true
     /// The island at the top of the screen: every project's sessions in one place,

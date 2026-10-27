@@ -182,6 +182,10 @@ final class TerminalEngine: NSObject, ObservableObject, LocalProcessTerminalView
         installScrollMonitor()
         installKeyMonitor()
         startPolling()
+        NotificationCenter.default.addObserver(forName: AppSettings.terminalAppearanceChanged,
+                                               object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyAppearanceToAll() }
+        }
     }
 
     // MARK: - View cache
@@ -192,12 +196,35 @@ final class TerminalEngine: NSObject, ObservableObject, LocalProcessTerminalView
         // first spawn, so it must not be 0×0 before layout.
         let v = StudioTerminalView(frame: NSRect(x: 0, y: 0, width: 1200, height: 720))
         v.processDelegate = self
-        v.font = NSFont.monospacedSystemFont(
-            ofSize: CGFloat(AppSettings.shared.terminalFontSize), weight: .regular)
         v.getTerminal().changeScrollback(10_000)
+        v.allowMouseReporting = false
+        applyAppearance(v)
         paint(v)
         views[key] = v
         return v
+    }
+
+    private func applyAppearance(_ v: StudioTerminalView) {
+        let settings = AppSettings.shared
+        let font = settings.terminalFont
+        if v.font != font { v.font = font }
+        let spacing = CGFloat(min(1.6, max(1.0, settings.terminalLineSpacing)))
+        if v.lineSpacing != spacing { v.lineSpacing = spacing }
+        v.useBrightColors = settings.terminalBoldBright
+        let blink = settings.terminalCursorBlink
+        let style: CursorStyle
+        switch AppSettings.TerminalCursor(rawValue: settings.terminalCursor) ?? .block {
+        case .block:     style = blink ? .blinkBlock : .steadyBlock
+        case .bar:       style = blink ? .blinkBar : .steadyBar
+        case .underline: style = blink ? .blinkUnderline : .steadyUnderline
+        }
+        v.getTerminal().setCursorStyle(style)
+        try? v.setUseMetal(settings.terminalGPU)
+        v.needsDisplay = true
+    }
+
+    private func applyAppearanceToAll() {
+        for view in views.values { applyAppearance(view) }
     }
 
     /// Applies the project's palette to one view.
