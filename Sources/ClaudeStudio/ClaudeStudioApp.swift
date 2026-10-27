@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// Commands routed from the menu to the key window; applied by `WindowManager.perform`.
 enum StudioCommand {
     case openFolder, newSession, newTerminal, newTab, closeTab, nextTab, previousTab, palette, switchProject
-    case splitRight, splitDown
+    case splitRight, splitDown, find
     case selectTab(Int)
 }
 
@@ -159,6 +159,9 @@ enum MainMenuBuilder {
             WindowManager.shared.perform(.palette)
         })
         viewMenu.addItem(.separator())
+        viewMenu.addItem(action(title: "Find in Terminal…", key: "f", modifiers: .command) {
+            WindowManager.shared.perform(.find)
+        })
         viewMenu.addItem(action(title: "Split Right", key: "d", modifiers: .command) {
             WindowManager.shared.perform(.splitRight)
         })

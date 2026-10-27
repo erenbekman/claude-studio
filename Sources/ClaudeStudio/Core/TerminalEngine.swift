@@ -29,6 +29,28 @@ final class StudioTerminalView: LocalProcessTerminalView {
         work()
     }
 
+    override func paste(_ sender: Any) {
+        let board = NSPasteboard.general
+        if let urls = board.readObjects(forClasses: [NSURL.self],
+                                        options: [.urlReadingFileURLsOnly: true]) as? [URL],
+           !urls.isEmpty {
+            typePaths(urls.map(\.path))
+            return
+        }
+        if board.string(forType: .string) == nil,
+           let data = board.data(forType: .png) ?? board.data(forType: .tiff),
+           let path = Self.writeDroppedImage(data) {
+            typePaths([path])
+            return
+        }
+        super.paste(sender)
+    }
+
+    private func typePaths(_ paths: [String]) {
+        let text = paths.map(Self.escapedForShell).joined(separator: " ") + " "
+        send(source: self, data: ArraySlice(Array(text.utf8)))
+    }
+
     // MARK: - Drag and drop
 
     private var dragRegistered = false
@@ -235,7 +257,8 @@ final class TerminalEngine: NSObject, ObservableObject, LocalProcessTerminalView
                       title: String, resumeSID: String? = nil,
                       initialPrompt: String? = nil, autoRun: Bool = false,
                       extraEnv: [String: String] = [:],
-                      linkSettings: String? = nil) {
+                      linkSettings: String? = nil,
+                      worktree: String? = nil) {
         guard !starting.contains(key) else { return }
         let v = view(for: key)
         if v.process?.running == true { return }
@@ -263,6 +286,15 @@ final class TerminalEngine: NSObject, ObservableObject, LocalProcessTerminalView
         // the UI says so rather than restarting behind your back.
         var flags = ""
         if let file = linkSettings { flags += " --settings \(Shell.quoted(file))" }
+        var directory = project.path
+        if let worktree {
+            let path = project.path + "/.claude/worktrees/" + worktree
+            if FileManager.default.fileExists(atPath: path) {
+                directory = path
+            } else {
+                flags += " --worktree \(Shell.quoted(worktree))"
+            }
+        }
         let claudeCommand: String
         if let sid = resumeSID {
             claudeCommand = "claude\(flags) --resume \(Shell.quoted(sid))"
@@ -271,7 +303,7 @@ final class TerminalEngine: NSObject, ObservableObject, LocalProcessTerminalView
         } else {
             claudeCommand = "claude\(flags)"
         }
-        let inner = "cd \(Shell.quoted(project.path)) && exec \(claudeCommand)"
+        let inner = "cd \(Shell.quoted(directory)) && exec \(claudeCommand)"
 
         let wrapped: String
         if Tmux.isAvailable {
@@ -659,6 +691,8 @@ final class TerminalEngine: NSObject, ObservableObject, LocalProcessTerminalView
     }
 
     // MARK: - Input
+
+    func tmuxSession(key: String) -> String? { views[key]?.tmuxSession }
 
     func send(key: String, text: String, enter: Bool = false) {
         guard let v = views[key], v.process?.running == true else { return }

@@ -491,10 +491,15 @@ struct Sidebar: View {
                                     .padding(.leading, 2)
                             }
                         }
-                        Text(meta(for: record))
-                            .font(Theme.ui(11))
-                            .foregroundStyle(theme.text3)
-                            .lineLimit(1)
+                        HStack(spacing: 5) {
+                            if let worktree = record.worktree {
+                                worktreeChip(worktree)
+                            }
+                            Text(meta(for: record))
+                                .font(Theme.ui(11))
+                                .foregroundStyle(theme.text3)
+                                .lineLimit(1)
+                        }
                     }
                     IconButton(icon: "xmark", help: "Close session") {
                         model.closeSession(record)
@@ -514,6 +519,22 @@ struct Sidebar: View {
                 Button("Delete record") { model.deleteSession(record) }
             }
         }
+    }
+
+    private func worktreeChip(_ name: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 8.5, weight: .regular))
+            Text(name)
+                .font(Theme.ui(10))
+                .lineLimit(1)
+        }
+        .foregroundStyle(theme.text2)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .background(Capsule().fill(theme.hover))
+        .fixedSize()
+        .help("Runs in the worktree .claude/worktrees/\(name)")
     }
 
     @ViewBuilder private func statusGlyph(_ state: Attention) -> some View {
@@ -1080,6 +1101,7 @@ private struct SessionOpener: View {
     @ObservedObject var model: StudioModel
     let onDismiss: () -> Void
     @State private var name = ""
+    @State private var inWorktree = false
     /// Focused as the popover appears. Without it the field looked ready to type
     /// into and was not: Enter went nowhere, and "+ , Enter" — the fastest way to
     /// start an unnamed session, and the one everybody reaches for — did nothing
@@ -1106,7 +1128,21 @@ private struct SessionOpener: View {
             .padding(.horizontal, 10)
             .padding(.bottom, 4)
 
-            Text("Leave it empty and Claude names the session itself.")
+            Toggle(isOn: $inWorktree) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("In a new worktree").font(Theme.ui(12)).foregroundStyle(theme.text)
+                    Text("Its own branch and folder, so parallel sessions never touch the same files.")
+                        .font(Theme.ui(10.5))
+                        .foregroundStyle(theme.text3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.checkbox)
+            .padding(.horizontal, 10)
+            .padding(.top, 4)
+            .padding(.bottom, 6)
+
+            Text("Leave the name empty and Claude names the session itself.")
                 .font(Theme.ui(10))
                 .foregroundStyle(theme.text3)
                 .padding(.horizontal, 10)
@@ -1187,8 +1223,19 @@ private struct SessionOpener: View {
     }
 
     private func create() {
-        model.newSession(name: name.nilIfEmpty)
+        model.newSession(name: name.nilIfEmpty, worktree: inWorktree ? worktreeName : nil)
         onDismiss()
+    }
+
+    private var worktreeName: String {
+        let slug = String((name.nilIfEmpty ?? "")
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+            .split(separator: "-")
+            .joined(separator: "-")
+        let suffix = String(UUID().uuidString.prefix(4)).lowercased()
+        return slug.isEmpty ? "session-\(suffix)" : "\(slug.prefix(40))-\(suffix)"
     }
 }
 

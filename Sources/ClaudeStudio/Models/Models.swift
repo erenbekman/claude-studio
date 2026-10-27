@@ -97,6 +97,11 @@ struct SessionRecord: Identifiable, Hashable, Codable {
     /// matter what the conversation turned out to be about. `nil` means the
     /// record predates the field, and the old guess is used for it.
     var autoNamed: Bool?
+    var worktree: String?
+
+    func worktreePath(in project: Project) -> String? {
+        worktree.map { project.path + "/.claude/worktrees/" + $0 }
+    }
 
     /// Tab and hook identifier (`CS_TAB_ID`).
     var tabKey: String { "session:\(tmux)" }
@@ -145,6 +150,7 @@ struct SessionRecord: Identifiable, Hashable, Codable {
         lastUsed  = value(.lastUsed, Date())
         saved     = value(.saved, false)
         autoNamed = (try? box.decodeIfPresent(Bool.self, forKey: .autoNamed)) ?? nil
+        worktree  = (try? box.decodeIfPresent(String.self, forKey: .worktree)) ?? nil
     }
 
     static func make(projectShortID: String, name: String,

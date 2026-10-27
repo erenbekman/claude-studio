@@ -55,6 +55,7 @@ Sources/ClaudeStudio/
 │   ├── SessionDetails.swift   # session header: model + context (transcript), mode (screen)
 │   ├── GitChanges.swift       # uncommitted changes: header counts + the diff sheet
 │   ├── PlanUsage.swift        # plan limits (5h / week / scoped) for the status bar
+│   ├── PullRequests.swift     # `gh pr view` for the branch: number, state, checks
 │   ├── ClaudeTranscripts.swift# resume availability check
 │   ├── Settings.swift         # user preferences (sound, notifications, terminal)
 │   ├── Updater.swift          # GitHub release self-updater
@@ -62,7 +63,7 @@ Sources/ClaudeStudio/
 │   └── StudioModel.swift      # all state for one window
 └── Views/                 # Windows, RootView, WelcomeView, StudioView, Sidebar, Detail,
                            # Sheets, SettingsWindow, CommandPalette, Markdown, TerminalHost,
-                           # ChangesSheet, ConversationsSheet, ProjectSwitcher,
+                           # ChangesSheet, ConversationsSheet, ProjectSwitcher, FindSheet,
                            # Island (the panel above every app, owned by no window)
 
 Sources/StudioBridge/       # second executable: the MCP server the app registers with
@@ -292,6 +293,25 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   on its corner.
   Icons are outline SF Symbols at light weight in the tertiary text colour (12–13 pt
   in rows and buttons); filled glyphs only for state (bell, bookmark).
+- **Worktree sessions** (`SessionRecord.worktree`, the checkbox in the "+" popover):
+  a new one starts as `claude --worktree <name>`, which creates
+  `<project>/.claude/worktrees/<name>` on branch `worktree-<name>`. Every later start
+  (reopen, resume) `cd`s into that folder instead, because Claude stores the
+  transcript under the worktree's path — resuming from the project root finds
+  nothing. `StudioModel.workPath(for:)` is what the header, Changes and the PR badge
+  read, so a worktree session shows ITS diff and ITS pull request.
+- **Session header extras**: the PR badge is `gh pr view` in the work path, at most
+  once a minute (nil without `gh`, a remote or a PR). Tasks are the last `TodoWrite`
+  in the transcript; without one, the last `ExitPlanMode` plan. Context is shown
+  against 1M unless the model is a Haiku without `[1m]` and has never gone past
+  200k; amber at 60%, red at 80% with a hint to `/compact`.
+- **Diff comments** (Changes sheet): click a line, write, Add; "Send to Claude" (⌘↩)
+  types every comment as one message into the active session — or the first open
+  one — WITHOUT pressing Enter, so it can be read before it goes.
+- **Find (⌘F)**: searches `tmux capture-pane` history (10,000 lines), not SwiftTerm's
+  buffer — tmux redraws the screen, so the terminal's own scrollback is nearly empty.
+- **Paste (⌘V)**: file URLs on the clipboard are typed as escaped paths; image data
+  with no text is written to `dropped/` and typed as its path, same as a drop.
 - **Plan usage** (`PlanUsage`, the "Used" meter at the left of the status bar): read
   from `cachedUsageUtilization.utilization.limits` in `~/.claude.json`, the cache
   Claude Code itself refreshes. Only that key is read and only when the file's mtime

@@ -134,6 +134,10 @@ final class StudioModel: ObservableObject {
     /// ⌘P palette visibility.
     @Published var paletteOpen = false
     @Published var conversationsOpen = false
+    @Published var findOpen = false
+    @Published private(set) var pullRequest: PullRequests.Status?
+    @Published private(set) var workPath = ""
+    private var pullRequestChecked: (path: String, at: Date)?
     @Published var splitTabs: [String]?
     @Published var splitAxis: SplitAxis = .horizontal
     @Published var splitMaximized = false
@@ -492,20 +496,22 @@ final class StudioModel: ObservableObject {
 
     @discardableResult
     func newSession(name: String? = nil, prompt: String? = nil, autoRun: Bool = false,
-                    extraEnv: [String: String] = [:]) -> SessionRecord {
+                    extraEnv: [String: String] = [:], worktree: String? = nil) -> SessionRecord {
         let title = name ?? nextSessionName()
         // No name asked for means Claude gets to choose one later; a name passed
         // in — a skill run, a slash command, a resumed report — is a decision
         // already made and is never overwritten.
-        let record = SessionRecord.make(projectShortID: project.shortID, name: title,
+        var record = SessionRecord.make(projectShortID: project.shortID, name: title,
                                         autoNamed: name == nil)
+        record.worktree = worktree
         store.addSession(record)
         open(StudioTab(kind: .session, ref: record.tmux, title: title))
         let (grants, linkSettings) = linkAccess()
         sessionGrants[record.tabKey] = Set(grants)
         engine.startSession(key: record.tabKey, session: record.tmux, project: project,
                             title: title, initialPrompt: prompt, autoRun: autoRun,
-                            extraEnv: extraEnv, linkSettings: linkSettings)
+                            extraEnv: extraEnv, linkSettings: linkSettings,
+                            worktree: worktree)
         liveSessions.insert(record.tmux)
         return record
     }
@@ -534,14 +540,15 @@ final class StudioModel: ObservableObject {
             // The id is kept even when there is no transcript yet: clearing it would
             // permanently forfeit a resume for a conversation that may still be
             // written. The check is one stat call, so it is repeatedevery time.
-            if ClaudeTranscripts.exists(projectPath: project.path, sessionID: sid) { resume = sid }
+            if ClaudeTranscripts.exists(projectPath: record.worktreePath(in: project) ?? project.path,
+                                        sessionID: sid) { resume = sid }
         }
 
         let (grants, linkSettings) = linkAccess()
         sessionGrants[record.tabKey] = Set(grants)
         engine.startSession(key: record.tabKey, session: record.tmux, project: project,
                             title: record.name, resumeSID: resume,
-                            linkSettings: linkSettings)
+                            linkSettings: linkSettings, worktree: record.worktree)
         store.touchSession(tmux: record.tmux)
         liveSessions.insert(record.tmux)
     }
@@ -600,7 +607,8 @@ final class StudioModel: ObservableObject {
     /// Can a closed session's conversation be brought back?
     func canResume(_ record: SessionRecord) -> Bool {
         guard let sid = record.claudeSID else { return false }
-        return ClaudeTranscripts.exists(projectPath: project.path, sessionID: sid)
+        return ClaudeTranscripts.exists(projectPath: record.worktreePath(in: project) ?? project.path,
+                                        sessionID: sid)
     }
 
     func renameSession(_ record: SessionRecord, to name: String, byUser: Bool = true) {
@@ -1286,7 +1294,7 @@ final class StudioModel: ObservableObject {
         engine.startSession(key: record.tabKey, session: record.tmux, project: project,
                             title: record.name, resumeSID: sid,
                             initialPrompt: message.nilIfEmpty,
-                            linkSettings: linkSettings)
+                            linkSettings: linkSettings, worktree: record.worktree)
         store.touchSession(tmux: record.tmux)
         liveSessions.insert(record.tmux)
     }
@@ -1403,10 +1411,21 @@ final class StudioModel: ObservableObject {
 
     var activeTab: StudioTab? { tabs.first { $0.id == activeTabID } }
 
+    func workPath(for tab: StudioTab?) -> String {
+        guard let tab, tab.kind == .session,
+              let path = store.session(tmux: tab.ref)?.worktreePath(in: project),
+              FileManager.default.fileExists(atPath: path)
+        else { return project.path }
+        return path
+    }
+
     func refreshSessionHeader() {
         guard !headerRefreshing else { return }
         headerRefreshing = true
-        let path = project.path
+        let path = workPath(for: activeTab)
+        if workPath != path { workPath = path }
+        let checkPullRequest = pullRequestChecked.map { $0.path != path || Date().timeIntervalSince($0.at) > 60 } ?? true
+        if checkPullRequest { pullRequestChecked = (path, Date()) }
         let tab = activeTab.flatMap { $0.kind == .session ? $0 : nil }
         let key = tab?.terminalKey
         let sid = key.flatMap { engine.claudeSIDs[$0] } ?? tab.flatMap { store.session(tmux: $0.ref)?.claudeSID }
@@ -1414,11 +1433,13 @@ final class StudioModel: ObservableObject {
         let previousMode = key.flatMap { sessionDetails[$0]?.mode }
         Task.detached(priority: .utility) {
             let summary = GitChanges.summary(at: path)
+            let pull = checkPullRequest ? PullRequests.status(at: path) : nil
             let details = key == nil ? nil
                 : SessionDetails.read(projectPath: path, sessionID: sid, tmux: tmux,
                                       previousMode: previousMode)
             await MainActor.run {
                 if self.changes != summary { self.changes = summary }
+                if checkPullRequest, self.pullRequest != pull { self.pullRequest = pull }
                 if let key, let details, self.sessionDetails[key] != details {
                     self.sessionDetails[key] = details
                 }

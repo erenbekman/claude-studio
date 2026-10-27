@@ -221,6 +221,7 @@ private struct TerminalPane: View {
     var focused = true
     var split = false
     @State private var editingTitle = false
+    @State private var showingTasks = false
     @State private var draftTitle = ""
     @FocusState private var titleFocused: Bool
 
@@ -337,6 +338,7 @@ private struct TerminalPane: View {
                 }
             }
         case .session:
+            pullRequestChip
             if let changes = model.changes, changes.files > 0 {
                 Button { model.changesOpen = true } label: {
                     HStack(spacing: 5) {
@@ -393,12 +395,76 @@ private struct TerminalPane: View {
             }
             .disabled(working)
         }
-        if let context = details?.contextLabel {
-            Text(context)
-                .font(Theme.ui(11))
-                .foregroundStyle(theme.text3)
-                .lineLimit(1)
+        if let progress = details?.todoProgress, let todos = details?.todos {
+            chip(progress, icon: "checklist", help: "Claude's task list") { showingTasks = true }
+                .popover(isPresented: $showingTasks, arrowEdge: .bottom) { TaskListView(todos: todos) }
+        } else if let plan = details?.plan {
+            chip("Plan", icon: "list.bullet.clipboard", help: "The plan Claude proposed last") { showingTasks = true }
+                .popover(isPresented: $showingTasks, arrowEdge: .bottom) { PlanView(plan: plan) }
         }
+        if let label = details?.contextLabel, let fraction = details?.contextFraction {
+            HStack(spacing: 6) {
+                ZStack(alignment: .leading) {
+                    Capsule().fill(theme.separator)
+                    Capsule()
+                        .fill(fraction >= 0.8 ? Theme.danger : fraction >= 0.6 ? Theme.warning : theme.text3)
+                        .frame(width: max(2, 34 * fraction))
+                }
+                .frame(width: 34, height: 4)
+                Text(label)
+                    .font(Theme.ui(11))
+                    .foregroundStyle(fraction >= 0.8 ? Theme.danger : theme.text3)
+                    .lineLimit(1)
+            }
+            .help(fraction >= 0.8
+                  ? "Context is filling up — /compact keeps the conversation going with a summary"
+                  : "Context used of \((details?.contextLimit ?? 0) / 1000)k")
+        }
+    }
+
+    @ViewBuilder private var pullRequestChip: some View {
+        if model.activeTabID == tab.id, let pull = model.pullRequest {
+            Button { NSWorkspace.shared.open(pull.url) } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: pull.state == .merged ? "arrow.triangle.merge" : "arrow.triangle.pull")
+                        .font(.system(size: 10, weight: .light))
+                        .foregroundStyle(pull.state == .merged ? Color.purple : pull.state == .closed ? Theme.danger : theme.text2)
+                    Text("#\(pull.number)")
+                        .font(Theme.ui(11))
+                        .foregroundStyle(theme.text2)
+                    switch pull.checks {
+                    case .passed:  Image(systemName: "checkmark").foregroundStyle(Theme.running)
+                    case .failed:  Image(systemName: "xmark").foregroundStyle(Theme.danger)
+                    case .pending: Image(systemName: "circle.dotted").foregroundStyle(Theme.warning)
+                    case .none:    EmptyView()
+                    }
+                }
+                .font(.system(size: 9.5, weight: .semibold))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(theme.field))
+            }
+            .buttonStyle(.plain)
+            .help(pullRequestHelp(pull))
+        }
+    }
+
+    private func pullRequestHelp(_ pull: PullRequests.Status) -> String {
+        let state: String
+        switch pull.state {
+        case .open: state = "open"
+        case .draft: state = "draft"
+        case .merged: state = "merged"
+        case .closed: state = "closed"
+        }
+        let checks: String
+        switch pull.checks {
+        case .none: checks = "no checks"
+        case .pending: checks = "checks running"
+        case .passed: checks = "\(pull.total) checks passed"
+        case .failed: checks = "\(pull.failing) of \(pull.total) checks failing"
+        }
+        return "#\(pull.number) \(pull.title) — \(state), \(checks). Click to open on GitHub."
     }
 
     private func chip(_ title: String, icon: String, tint: Color? = nil, help: String,
@@ -1113,5 +1179,48 @@ struct PaneHeader<Actions: View>: View {
         .frame(height: 34)
         .background(theme.surface)
         .overlay(alignment: .bottom) { Rectangle().fill(theme.separator).frame(height: 1) }
+    }
+}
+
+private struct TaskListView: View {
+    @Environment(\.studioTheme) private var theme
+    let todos: [SessionDetails.Todo]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Tasks")
+                .font(Theme.ui(12.5, .semibold))
+                .foregroundStyle(theme.text)
+                .padding(.bottom, 2)
+            ForEach(todos) { todo in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: todo.status == .completed ? "checkmark.circle.fill"
+                          : todo.status == .inProgress ? "circle.dotted" : "circle")
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundStyle(todo.status == .completed ? Theme.running
+                                         : todo.status == .inProgress ? theme.accent : theme.text3)
+                        .frame(width: 14)
+                    Text(todo.content)
+                        .font(Theme.ui(12))
+                        .foregroundStyle(todo.status == .completed ? theme.text3 : theme.text)
+                        .strikethrough(todo.status == .completed, color: theme.text3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 340, alignment: .leading)
+    }
+}
+
+private struct PlanView: View {
+    let plan: String
+
+    var body: some View {
+        ScrollView {
+            MarkdownView(text: plan)
+                .padding(16)
+        }
+        .frame(width: 520, height: 480)
     }
 }

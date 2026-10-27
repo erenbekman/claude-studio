@@ -113,6 +113,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         case .switchProject: model.projectSwitcherOpen.toggle()
         case .splitRight:   model.split(.horizontal)
         case .splitDown:    model.split(.vertical)
+        case .find:         if model.activeTab?.kind.isTerminal == true { model.findOpen = true }
         case .nextTab:      model.selectNextTab(1)
         case .previousTab:  model.selectNextTab(-1)
         case .openFolder:   break

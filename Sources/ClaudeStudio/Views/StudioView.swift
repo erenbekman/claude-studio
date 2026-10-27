@@ -37,7 +37,14 @@ struct StudioView: View {
             ConversationsSheet(model: model) { model.conversationsOpen = false }
         }
         .sheet(isPresented: $model.changesOpen) {
-            ChangesSheet(path: model.project.path) { model.changesOpen = false }
+            ChangesSheet(model: model, path: model.workPath.isEmpty ? model.project.path : model.workPath) {
+                model.changesOpen = false
+            }
+        }
+        .sheet(isPresented: $model.findOpen) {
+            if let tab = model.activeTab {
+                FindSheet(model: model, tab: tab) { model.findOpen = false }
+            }
         }
         .sheet(isPresented: $model.themeSheetOpen) {
             ThemeEditor(model: model, onDismiss: { model.themeSheetOpen = false })
