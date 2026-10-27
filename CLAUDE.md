@@ -61,7 +61,7 @@ Sources/ClaudeStudio/
 │   └── StudioModel.swift      # all state for one window
 └── Views/                 # Windows, RootView, WelcomeView, StudioView, Sidebar, Detail,
                            # Sheets, SettingsWindow, CommandPalette, Markdown, TerminalHost,
-                           # ChangesSheet,
+                           # ChangesSheet, ConversationsSheet,
                            # Island (the panel above every app, owned by no window)
 
 Sources/StudioBridge/       # second executable: the MCP server the app registers with
@@ -259,6 +259,15 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   --no-renames` plus untracked files: `--relative` so tracked and untracked paths
   agree when the project is a subdirectory of its repository, `--no-renames` because
   numstat writes a rename as `old => new` and it would match no patch.
+- **Conversation search** (`ClaudeTranscripts.search`, the clock button in Sessions):
+  every transcript of the project, including ones started outside Claude Studio. NOT
+  `grep`, for two reasons. `Process` passes its arguments through the file-system
+  representation, which DECOMPOSES Unicode (NFD): "ü" arrives as "u" plus a combining
+  mark and never matches the NFC text in the file — Turkish searches silently found
+  nothing. And BSD `grep -i` ran at ~80 MB/s, nine seconds over 680 MB of transcripts.
+  Instead each file is mapped, case-folded in place (ASCII, Latin-1, Ğ/Ş) and searched
+  with `memmem`, files in parallel: about half a second. Turkish dotless ı and dotted
+  İ are not folded — both sides must keep their length.
 - **What gets announced**: a QUESTION (`waiting`) always. A finished turn (`done`)
   only when the turn ran at least as long as the user's threshold:
   `notify.finishedAfterMinutes` on the Mac, `preferences.finishedAfter` per device on
