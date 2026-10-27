@@ -515,6 +515,14 @@ extension Date {
         return f.localizedString(for: self, relativeTo: Date())
     }
 
+    var compactAge: String {
+        let seconds = max(0, Int(Date().timeIntervalSince(self)))
+        if seconds < 60 { return "now" }
+        if seconds < 3600 { return "\(seconds / 60)m" }
+        if seconds < 86400 { return "\(seconds / 3600)h" }
+        return "\(seconds / 86400)d"
+    }
+
     var shortStamp: String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US")

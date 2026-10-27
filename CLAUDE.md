@@ -54,6 +54,7 @@ Sources/ClaudeStudio/
 │   ├── PaneReader.swift       # what a session is waiting FOR, read off its screen
 │   ├── SessionDetails.swift   # session header: model + context (transcript), mode (screen)
 │   ├── GitChanges.swift       # uncommitted changes: header counts + the diff sheet
+│   ├── PlanUsage.swift        # plan limits (5h / week / scoped) for the status bar
 │   ├── ClaudeTranscripts.swift# resume availability check
 │   ├── Settings.swift         # user preferences (sound, notifications, terminal)
 │   ├── Updater.swift          # GitHub release self-updater
@@ -268,6 +269,13 @@ Bridge/                     # cs-bridge: phone access over a private mesh. Shipp
   Instead each file is mapped, case-folded in place (ASCII, Latin-1, Ğ/Ş) and searched
   with `memmem`, files in parallel: about half a second. Turkish dotless ı and dotted
   İ are not folded — both sides must keep their length.
+- **Plan usage** (`PlanUsage`, the "Used" meter at the left of the status bar): read
+  from `cachedUsageUtilization.utilization.limits` in `~/.claude.json`, the cache
+  Claude Code itself refreshes. Only that key is read and only when the file's mtime
+  changes (checked every 30 s); the app never calls the usage API and never touches
+  the OAuth token. The statusLine `rate_limits` payload is not used: the statusLine
+  command belongs to the user. Kinds: `session` (5h), `weekly_all`, `weekly_scoped`
+  (shown by its model name). 70% turns amber, 90% red.
 - **What gets announced**: a QUESTION (`waiting`) always. A finished turn (`done`)
   only when the turn ran at least as long as the user's threshold:
   `notify.finishedAfterMinutes` on the Mac, `preferences.finishedAfter` per device on

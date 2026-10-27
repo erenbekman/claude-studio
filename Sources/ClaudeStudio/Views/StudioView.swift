@@ -450,24 +450,22 @@ private struct TabBar: View {
 private struct StatusBar: View {
     @ObservedObject var model: StudioModel
     @ObservedObject private var usage = UsageMonitor.shared
+    @ObservedObject private var plan = PlanUsage.shared
     @Environment(\.studioTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 16) {
-            Text(model.project.name).foregroundStyle(theme.text2)
+        HStack(spacing: 14) {
+            if !plan.limits.isEmpty { planUsage }
 
-            // What a session is running right now, and whose capability it is — the
-            // skill may belong to this project, a linked one, or your global set.
             if let running = model.liveUsage.last?.usage {
                 HStack(spacing: 5) {
                     StatusDot(color: theme.accent, size: 5)
                     Text("using \(running.display) · \(model.owner(of: running.name))")
                         .foregroundStyle(theme.text2)
+                        .lineLimit(1)
                 }
             }
 
-            // A skill running with no tab of its own — a scheduled or background run —
-            // is otherwise invisible from here.
             if let skill = model.runs.running.sorted().first {
                 Button { model.openCron(skillNamed: skill) } label: {
                     HStack(spacing: 5) {
@@ -482,21 +480,91 @@ private struct StatusBar: View {
                 .help("Show the live output")
             }
 
-            Spacer()
-            Text("\(model.openSessions.count) sessions")
-            Text("\(model.runningServiceCount)/\(model.store.config.services.count) services")
-            if let next = model.store.nextRun {
-                Text("next: \(next.skill) · \(next.date.shortStamp)")
-            }
+            Spacer(minLength: 8)
+
             if !Tmux.isAvailable {
                 Text("tmux missing — sessions are not persistent").foregroundStyle(Theme.danger)
             }
+            if let next = model.store.nextRun {
+                item("clock", "\(next.skill) · \(next.date.shortStamp)")
+                    .help("Next scheduled run")
+            }
+            item("server.rack", "\(model.runningServiceCount)/\(model.store.config.services.count)")
+                .help("Running services")
+            item("terminal", "\(model.openSessions.count)")
+                .help("Open sessions")
         }
-        .font(Theme.mono(10.5))
+        .font(Theme.ui(11))
         .foregroundStyle(theme.text3)
+        .lineLimit(1)
         .padding(.horizontal, 12)
-        .frame(height: 24)
+        .frame(height: 26)
         .background(theme.chrome)
         .overlay(alignment: .top) { Rectangle().fill(theme.separator).frame(height: 1) }
+    }
+
+    private var planUsage: some View {
+        HStack(spacing: 8) {
+            Text("Used").foregroundStyle(theme.text2)
+            Image(systemName: "asterisk")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Theme.accent)
+            meter(plan.peak)
+            HStack(spacing: 5) {
+                ForEach(Array(plan.limits.enumerated()), id: \.element.id) { index, limit in
+                    if index > 0 { Text("·").foregroundStyle(theme.text3) }
+                    segment(limit)
+                }
+            }
+        }
+        .help(planHelp)
+    }
+
+    private func segment(_ limit: PlanUsage.Limit) -> some View {
+        HStack(spacing: 4) {
+            Text("\(limit.percent)%")
+                .font(Theme.mono(10.5, .medium))
+                .foregroundStyle(tone(limit.percent) ?? theme.text2)
+            switch limit.kind {
+            case .scoped(let name):
+                Text(name)
+            case .session, .weekly:
+                if let left = limit.remaining() { Text(left).font(Theme.mono(10.5)) }
+            }
+        }
+    }
+
+    private func meter(_ percent: Int) -> some View {
+        ZStack(alignment: .leading) {
+            Capsule().fill(theme.separator)
+            Capsule()
+                .fill(tone(percent) ?? theme.text2)
+                .frame(width: max(3, 56 * CGFloat(min(100, percent)) / 100))
+        }
+        .frame(width: 56, height: 4)
+    }
+
+    private func tone(_ percent: Int) -> Color? {
+        if percent >= 90 { return Theme.danger }
+        if percent >= 70 { return Theme.warning }
+        return nil
+    }
+
+    private var planHelp: String {
+        var lines = plan.limits.map { limit in
+            let left = limit.remaining().map { " · resets in \($0)" } ?? ""
+            return "\(limit.title): \(limit.percent)%\(left)"
+        }
+        if let fetchedAt = plan.fetchedAt {
+            lines.append("Updated \(fetchedAt.relative) by Claude Code")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func item(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 9.5))
+            Text(text).font(Theme.mono(10.5))
+        }
     }
 }

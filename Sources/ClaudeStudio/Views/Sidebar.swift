@@ -21,6 +21,7 @@ struct Sidebar: View {
     @State private var sessionManager = false
     @State private var renaming: String?
     @State private var renameText = ""
+    @State private var sessionFilter = ""
     @FocusState private var renameFocused: Bool
 
     var body: some View {
@@ -182,15 +183,17 @@ struct Sidebar: View {
     }
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 6) {
+            IconButton(icon: "gearshape", help: "Settings (⌘,)") { SettingsWindow.show() }
             Text(footerText)
-                .font(Theme.mono(10.5))
+                .font(Theme.ui(10.5))
                 .foregroundStyle(theme.text3)
                 .lineLimit(1)
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.leading, 6)
+        .padding(.trailing, 12)
+        .padding(.vertical, 5)
         .overlay(alignment: .top) { Rectangle().fill(theme.separator).frame(height: 1) }
     }
 
@@ -284,88 +287,190 @@ struct Sidebar: View {
 
     // MARK: - Sessions
 
+    private var trimmedFilter: String { sessionFilter.trimmingCharacters(in: .whitespaces) }
+
+    private func matches(_ record: SessionRecord) -> Bool {
+        trimmedFilter.isEmpty
+            || record.name.localizedCaseInsensitiveContains(trimmedFilter)
+            || meta(for: record).localizedCaseInsensitiveContains(trimmedFilter)
+    }
+
+    private var sessionSearch: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.text3)
+            TextField("Search sessions", text: $sessionFilter)
+                .textFieldStyle(.plain)
+                .font(Theme.ui(12.5))
+            if !sessionFilter.isEmpty {
+                Button { sessionFilter = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.text3)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(theme.field))
+        .padding(.horizontal, 2)
+        .padding(.bottom, 8)
+    }
+
     @ViewBuilder private var sessionsList: some View {
+        sessionSearch
+
+        let open = model.openSessions.filter(matches)
         if model.openSessions.isEmpty {
-            // No call to action: "+" sits right above, and repeating it here only
-            // made the pane look emptier than it is.
             Text("No open sessions.")
                 .font(Theme.ui(12))
                 .foregroundStyle(theme.text3)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 12)
+        } else if !open.isEmpty {
+            VStack(spacing: 1) {
+                HStack {
+                    Text("\(open.count) \(open.count == 1 ? "session" : "sessions")")
+                        .font(Theme.ui(11))
+                        .foregroundStyle(theme.text3)
+                    Spacer()
+                    if model.attentionCount > 0 {
+                        Text("\(model.attentionCount) unread")
+                            .font(Theme.ui(10.5))
+                            .foregroundStyle(Theme.waiting)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 2)
+                .padding(.bottom, 3)
+                ForEach(open) { record in
+                    openSession(record)
+                }
+            }
+            .padding(5)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(theme.hover)
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(theme.separator.opacity(0.6)))
+            )
         }
-        ForEach(model.openSessions) { record in
-            if renaming == record.tmux {
-                renameField(record)
-            } else {
-                // Single click opens, double click renames — the Finder/VS Code reflex.
-                HoverRow(selected: model.activeTabID == record.tabKey,
-                         padding: EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 6)) {
-                    HStack(spacing: 8) {
-                        StatusDot(color: color(for: model.attention(of: record)))
-                        VStack(alignment: .leading, spacing: 1) {
-                            HStack(spacing: 4) {
-                                if record.saved {
-                                    Image(systemName: "bookmark.fill")
-                                        .font(.system(size: 8))
-                                        .foregroundStyle(theme.accent)
-                                }
-                                Text(record.name)
-                                    .font(Theme.ui(12.5))
-                                    .foregroundStyle(theme.text)
-                                    .lineLimit(1)
+
+        let saved = model.savedClosedSessions.filter(matches)
+        if !saved.isEmpty {
+            SectionLabel(text: "saved")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.top, 14)
+                .padding(.bottom, 4)
+            ForEach(saved) { record in
+                closedSession(record)
+            }
+        }
+
+        let past = model.pastSessions.filter(matches).prefix(trimmedFilter.isEmpty ? 8 : 40)
+        if !past.isEmpty {
+            SectionLabel(text: "previous sessions")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.top, 14)
+                .padding(.bottom, 4)
+            ForEach(Array(past)) { record in
+                closedSession(record)
+            }
+        }
+
+        if !trimmedFilter.isEmpty && open.isEmpty && saved.isEmpty && past.isEmpty {
+            Text("Nothing matches.")
+                .font(Theme.ui(12))
+                .foregroundStyle(theme.text3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 12)
+        }
+    }
+
+    @ViewBuilder private func openSession(_ record: SessionRecord) -> some View {
+        if renaming == record.tmux {
+            renameField(record)
+        } else {
+            let state = model.attention(of: record)
+            HoverRow(selected: model.activeTabID == record.tabKey,
+                     padding: EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 4),
+                     radius: 7) {
+                HStack(alignment: .top, spacing: 8) {
+                    statusGlyph(state)
+                        .frame(width: 14, height: 15)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            if record.saved {
+                                Image(systemName: "bookmark.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(theme.accent)
                             }
-                            // What it is waiting FOR, when it is waiting for
-                            // something — the state on its own ("waiting") was true
-                            // of every row and told them apart from nothing.
-                            Text(meta(for: record))
-                                .font(Theme.ui(10.5))
+                            Text(record.name)
+                                .font(Theme.ui(12.5, state.needsAttention ? .semibold : .regular))
+                                .foregroundStyle(theme.text)
+                                .lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(trailingMeta(for: record))
+                                .font(Theme.mono(10))
                                 .foregroundStyle(theme.text3)
                                 .lineLimit(1)
+                                .fixedSize()
                         }
-                        Spacer(minLength: 4)
-                        IconButton(icon: "xmark", help: "Close session") {
-                            model.closeSession(record)
-                        }
+                        Text(meta(for: record))
+                            .font(Theme.ui(11))
+                            .foregroundStyle(theme.text3)
+                            .lineLimit(1)
                     }
-                }
-                .onTapGesture(count: 2) { beginRename(record) }
-                .onTapGesture { model.openSession(record) }
-                .contextMenu {
-                    Button("Rename") { beginRename(record) }
-                    Button(record.saved ? "Remove from saved" : "Save session") {
-                        model.setSaved(record, saved: !record.saved)
+                    IconButton(icon: "xmark", help: "Close session") {
+                        model.closeSession(record)
                     }
-                    Button("Close session") { model.closeSession(record) }
-                    Divider()
-                    Button("Delete record") { model.deleteSession(record) }
+                    .opacity(model.activeTabID == record.tabKey ? 1 : 0.55)
                 }
             }
-        }
-
-        // Saved sessions are listed in full and before the rest: "previous" is
-        // capped at eight because it is a tail nobody reads, and a session you
-        // deliberately kept must never fall off the end of it.
-        if !model.savedClosedSessions.isEmpty {
-            SectionLabel(text: "saved")
-                .padding(.horizontal, 8)
-                .padding(.top, 14)
-                .padding(.bottom, 4)
-            ForEach(model.savedClosedSessions) { record in
-                closedSession(record)
+            .onTapGesture(count: 2) { beginRename(record) }
+            .onTapGesture { model.openSession(record) }
+            .contextMenu {
+                Button("Rename") { beginRename(record) }
+                Button(record.saved ? "Remove from saved" : "Save session") {
+                    model.setSaved(record, saved: !record.saved)
+                }
+                Button("Close session") { model.closeSession(record) }
+                Divider()
+                Button("Delete record") { model.deleteSession(record) }
             }
         }
+    }
 
-        if !model.pastSessions.isEmpty {
-            SectionLabel(text: "previous sessions")
-                .padding(.horizontal, 8)
-                .padding(.top, 14)
-                .padding(.bottom, 4)
-            ForEach(model.pastSessions.prefix(8)) { record in
-                closedSession(record)
-            }
+    @ViewBuilder private func statusGlyph(_ state: Attention) -> some View {
+        switch state {
+        case .working:
+            ProgressView()
+                .controlSize(.mini)
+                .scaleEffect(0.7)
+                .tint(theme.accent)
+        case .waiting:
+            Image(systemName: "bell.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.waiting)
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.running)
+        case .seen, .idle:
+            StatusDot(color: theme.idle)
         }
+    }
+
+    private func trailingMeta(for record: SessionRecord) -> String {
+        let age = record.lastUsed.compactAge
+        guard let name = model.sessionDetails[record.tabKey]?.model else { return age }
+        return "\(name.lowercased()) \(age)"
     }
 
     /// The line under an open session's name.
@@ -375,12 +480,12 @@ struct Sidebar: View {
     /// ("waiting", eighteen times) and so distinguished nothing.
     private func meta(for record: SessionRecord) -> String {
         let state = model.attention(of: record)
-        if state.needsAttention,
+        if state.needsAttention || state == .working,
            let headline = SessionStates.shared.live
             .first(where: { $0.key == record.tabKey })?.headline {
             return headline
         }
-        return "\(state.label) · \(record.lastUsed.relative)"
+        return state.label
     }
 
     /// A session with no tab: saved, or simply previous.

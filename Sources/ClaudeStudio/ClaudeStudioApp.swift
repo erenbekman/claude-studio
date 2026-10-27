@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // window and then announced the same session finishing once per window, each
         // time under that window's project name.
         SessionStates.shared.start()
+        PlanUsage.shared.start()
         // The one surface that is not inside a window, and the only one that can
         // answer "which of my eighteen sessions wants something?" while the app is
         // not even in front.

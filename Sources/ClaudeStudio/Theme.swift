@@ -84,6 +84,12 @@ struct ThemePreset: Identifiable, Equatable, Sendable {
     /// The palettes offered in the picker, default first.
     static let all: [ThemePreset] = [
         claude,
+        ThemePreset(id: "graphite", name: "Graphite", accentHex: "#E8A33D",
+                    bgHex: "#1C1C1C", fgHex: "#D9D9D9", ansi: [
+                        "#2A2A2A", "#F14C4C", "#23C483", "#E8A33D",
+                        "#4FA1F0", "#C586C0", "#4EC9B0", "#CCCCCC",
+                        "#6B6B6B", "#FF6B6B", "#3DDC97", "#F5C25B",
+                        "#6CB6FF", "#D7A0D3", "#7FDDC9", "#F2F2F2"]),
         ThemePreset(id: "tokyo-night", name: "Tokyo Night", accentHex: "#7AA2F7",
                     bgHex: "#1A1B26", fgHex: "#C0CAF5", ansi: [
                         "#15161E", "#F7768E", "#9ECE6A", "#E0AF68",
