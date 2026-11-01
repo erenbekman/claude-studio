@@ -453,6 +453,18 @@ private struct StatusBar: View {
                 .help("Running services")
             item("terminal", "\(model.openSessions.count)")
                 .help("Open sessions")
+            if let next = model.openSessions.first(where: { model.attention(of: $0) == .waiting })
+                ?? model.openSessions.first(where: { model.attention(of: $0).needsAttention }) {
+                Button { model.openSession(next) } label: {
+                    HStack(spacing: 5) {
+                        StatusDot(color: Theme.waiting, size: 5)
+                        Text("\(model.attentionCount) needs you")
+                            .foregroundStyle(Theme.waiting)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Open \(next.name)")
+            }
         }
         .font(Theme.ui(11))
         .foregroundStyle(theme.text3)

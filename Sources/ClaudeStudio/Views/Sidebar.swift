@@ -393,6 +393,24 @@ struct Sidebar: View {
         .padding(.bottom, 8)
     }
 
+    private struct StateGroup: Identifiable {
+        var id: String { title }
+        let title: String
+        let urgent: Bool
+        let records: [SessionRecord]
+    }
+
+    private func stateGroups(_ open: [SessionRecord]) -> [StateGroup] {
+        let order: [(title: String, members: Set<Attention>)] = [
+            ("needs you", [.waiting]), ("finished", [.done]), ("working", [.working]), ("ready", [.seen, .idle]),
+        ]
+        return order.compactMap { entry in
+            let records = open.filter { entry.members.contains(model.attention(of: $0)) }
+            return records.isEmpty ? nil
+                : StateGroup(title: entry.title, urgent: entry.title == "needs you", records: records)
+        }
+    }
+
     @ViewBuilder private var sessionsList: some View {
         sessionSearch
 
@@ -413,8 +431,20 @@ struct Sidebar: View {
                 .padding(.horizontal, 6)
                 .padding(.top, 2)
                 .padding(.bottom, 3)
-                ForEach(open) { record in
-                    openSession(record)
+                let groups = stateGroups(open)
+                ForEach(groups) { group in
+                    if groups.count > 1 {
+                        Text("\(group.title) \(group.records.count)")
+                            .font(Theme.ui(10.5, .medium))
+                            .foregroundStyle(group.urgent ? Theme.waiting : theme.text3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.top, group.id == groups.first?.id ? 0 : 6)
+                            .padding(.bottom, 2)
+                    }
+                    ForEach(group.records) { record in
+                        openSession(record)
+                    }
                 }
             }
             .padding(5)
