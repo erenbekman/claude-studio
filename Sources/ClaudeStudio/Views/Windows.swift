@@ -117,6 +117,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         case .zoomPane:     if model.splitPanes != nil { model.splitMaximized.toggle() }
         case .otherPane:    model.focusOtherPane()
         case .toggleSidebar: model.sidebarHidden.toggle()
+        case .toggleBoard:  model.boardOpen.toggle()
         case .nextTab:     model.selectNextTab(1)
         case .previousTab:  model.selectNextTab(-1)
         case .openFolder:   break

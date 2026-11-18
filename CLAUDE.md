@@ -75,6 +75,7 @@ Sources/ClaudeStudio/
 └── Views/                 # Windows, RootView, WelcomeView, StudioView, Sidebar, Detail,
                            # Sheets, SettingsWindow, CommandPalette, Markdown, TerminalHost,
                            # ChangesSheet, ConversationsSheet, ProjectSwitcher, FindSheet,
+                           # SessionBoard (⌘B: every project's sessions by state, above the tabs),
                            # Island (the panel above every app, owned by no window)
 
 Sources/StudioBridge/       # second executable: the MCP server the app registers with

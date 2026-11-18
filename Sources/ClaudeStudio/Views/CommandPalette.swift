@@ -225,6 +225,10 @@ struct CommandPalette: View {
                                title: "Conversations", subtitle: "every transcript of this project") {
             model.conversationsOpen = true
         })
+        out.append(PaletteItem(id: "board", icon: "rectangle.split.3x1", group: "Workspace",
+                               title: model.boardOpen ? "Hide board" : "Show board", shortcut: "⌘B") {
+            model.boardOpen.toggle()
+        })
         out.append(PaletteItem(id: "switch-project", icon: "square.stack", group: "Workspace",
                                title: "Switch project", shortcut: "⇧⌘O") {
             model.projectSwitcherOpen = true

@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// Commands routed from the menu to the key window; applied by `WindowManager.perform`.
 enum StudioCommand {
     case openFolder, newSession, newTerminal, newTab, closeTab, nextTab, previousTab, palette, switchProject
-    case splitRight, splitDown, find, zoomPane, otherPane, toggleSidebar
+    case splitRight, splitDown, find, zoomPane, otherPane, toggleSidebar, toggleBoard
     case selectTab(Int)
 }
 
@@ -183,6 +183,9 @@ enum MainMenuBuilder {
         }
         viewMenu.addItem(action(title: "Toggle Sidebar", key: "/", modifiers: .command) {
             WindowManager.shared.perform(.toggleSidebar)
+        })
+        viewMenu.addItem(action(title: "Board", key: "b", modifiers: .command) {
+            WindowManager.shared.perform(.toggleBoard)
         })
         viewMenu.addItem(action(title: "Next Tab", key: "]", modifiers: [.command, .shift]) {
             WindowManager.shared.perform(.nextTab)

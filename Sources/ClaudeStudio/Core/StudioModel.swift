@@ -143,6 +143,7 @@ final class StudioModel: ObservableObject {
     @Published var splitMaximized = false
     @Published var projectSwitcherOpen = false
     @Published var sidebarHidden = false
+    @Published var boardOpen = false
     @Published var changesOpen = false
     /// Appearance sheet visibility. On the model rather than in the view, so the
     /// command palette can open it too.

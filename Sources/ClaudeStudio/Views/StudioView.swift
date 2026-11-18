@@ -22,6 +22,11 @@ struct StudioView: View {
                 }
 
                 VStack(spacing: 0) {
+                    if model.boardOpen {
+                        SessionBoard(model: model)
+                            .frame(height: 280)
+                        Rectangle().fill(theme.separator.opacity(0.5)).frame(height: 1)
+                    }
                     TabBar(model: model)
                     ContentArea(model: model)
                 }
@@ -161,6 +166,13 @@ private struct TopBar: View {
                 }
                 .headerControl()
             }
+
+            IconButton(icon: model.boardOpen ? "rectangle.split.3x1.fill" : "rectangle.split.3x1",
+                       help: model.boardOpen ? "Hide the board (⌘B)" : "Board: every project's sessions by state (⌘B)",
+                       tint: model.boardOpen ? theme.accent : nil) {
+                model.boardOpen.toggle()
+            }
+            .headerControl()
 
             IconButton(icon: "gearshape", help: "Settings (⌘,)") {
                 SettingsWindow.show()
